@@ -89,7 +89,6 @@ function validateConfig(
 		return undefined;
 	}
 
-	const idLabel = scope === "project" ? "project" : "global";
 	const config: ConfigV1 = { version: CONFIG_VERSION };
 
 	const selection = validateSelection(
@@ -191,7 +190,7 @@ function validateConfig(
 			diagnostics.push(
 				error(
 					"config-bindings",
-					`${filePath}: more than ${MAX_BINDINGS} bindings; the file was ignored.`,
+					`${filePath}: more than ${MAX_BINDINGS} bindings; the bindings were ignored.`,
 				),
 			);
 		} else {
@@ -235,7 +234,6 @@ function validateConfig(
 				`${filePath}: unknown keys were preserved but not interpreted: ${unknown.join(", ")}.`,
 			),
 		);
-		diagnostics.push(warn("config-scope", `config from ${idLabel} scope`));
 	}
 
 	return config;
@@ -372,15 +370,17 @@ function validateRule(
 			continue;
 		}
 		if (typeof value !== "string" || value.length === 0) {
+			// A malformed field must not degrade to a wildcard: keeping the rule
+			// without it would make the binding match every model.
 			diagnostics.push(
 				warn(
 					"config-binding-match",
-					`${filePath}: binding "${bindingId}" has an invalid ${field}.`,
+					`${filePath}: binding "${bindingId}" has an invalid ${field}; the whole rule was ignored.`,
 				),
 			);
-		} else {
-			rule[field] = value;
+			return undefined;
 		}
+		rule[field] = value;
 	}
 	return rule;
 }

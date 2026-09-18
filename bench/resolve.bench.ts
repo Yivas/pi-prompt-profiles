@@ -10,7 +10,9 @@ function buildSources(): ResolveSources {
 			id: `binding-${index}`,
 			profile: "global:base",
 			priority: index % 5,
-			match: [{ provider: `provider-${index % 7}`, model: `family-${index}/*` }],
+			match: [
+				{ provider: `provider-${index % 7}`, model: `family-${index}/*` },
+			],
 		});
 	}
 	const config: ConfigV1 = {

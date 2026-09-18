@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { error, warn } from "./diagnostics.js";
 import { isSafeId } from "./ids.js";
+import { containsManagedMarkers } from "./markers.js";
 import {
 	isRealPathInside,
 	profilesDir,
@@ -100,6 +101,15 @@ export function loadProfiles(
 			continue;
 		}
 		const content = stripBom(raw);
+		if (containsManagedMarkers(content)) {
+			diagnostics.push(
+				error(
+					"profile-marker",
+					`Profile "${id}" contains a reserved managed-block marker and was skipped.`,
+				),
+			);
+			continue;
+		}
 		if (Buffer.byteLength(content, "utf8") > maxBytes) {
 			diagnostics.push(
 				error(

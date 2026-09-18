@@ -10,6 +10,7 @@ import {
 	atomicWriteFile,
 	configPath,
 	globalRoot,
+	isRealPathInside,
 	projectRoot,
 } from "../core/paths.js";
 import { formatRef, parseRef } from "../core/refs.js";
@@ -83,14 +84,20 @@ function notify(
 	ctx.ui.notify(message, type);
 }
 
-function scopeFromFlag(
-	flags: Record<string, string | boolean>,
-): Scope | undefined {
+interface ScopeFlag {
+	scope?: Scope;
+	invalid?: string;
+}
+
+function parseScope(flags: Record<string, string | boolean>): ScopeFlag {
 	const value = flagString(flags, "scope");
 	if (value === undefined) {
-		return undefined;
+		return {};
 	}
-	return value === "global" || value === "project" ? value : undefined;
+	if (value === "global" || value === "project") {
+		return { scope: value };
+	}
+	return { invalid: value };
 }
 
 function formatDiagnostics(diagnostics: Diagnostic[]): string {
@@ -276,7 +283,15 @@ async function handleList(
 	ctx: ExtensionCommandContext,
 	args: ParsedArgs,
 ): Promise<void> {
-	const scope = scopeFromFlag(args.flags);
+	const { scope, invalid } = parseScope(args.flags);
+	if (invalid !== undefined) {
+		notify(
+			ctx,
+			`Invalid --scope "${invalid}". Use global or project.`,
+			"error",
+		);
+		return;
+	}
 	const lines = listProfiles(runtime, scope);
 	notify(ctx, lines.length > 0 ? lines.join("\n") : "No profiles found.");
 }
@@ -322,7 +337,15 @@ async function handleDefault(
 		);
 		return;
 	}
-	const scopeFlag = scopeFromFlag(args.flags);
+	const { scope: scopeFlag, invalid } = parseScope(args.flags);
+	if (invalid !== undefined) {
+		notify(
+			ctx,
+			`Invalid --scope "${invalid}". Use global or project.`,
+			"error",
+		);
+		return;
+	}
 	const explicit = parseRef(input);
 	const scope: Scope = scopeFlag ?? explicit?.scope ?? "global";
 	const id = explicit?.id ?? input;
@@ -330,10 +353,15 @@ async function handleDefault(
 		notify(ctx, `"${input}" is not a valid profile id.`, "error");
 		return;
 	}
-	const value =
-		scopeFlag === undefined && explicit
-			? formatRef(explicit)
-			: `${scope}:${id}`;
+	if (!profileExists(runtime, { scope, id })) {
+		notify(
+			ctx,
+			`Profile ${scope}:${id} was not found; defaultProfile was not changed.`,
+			"error",
+		);
+		return;
+	}
+	const value = formatRef({ scope, id });
 	try {
 		editConfig(runtime, ctx, scope, (config) => {
 			config.defaultProfile = value;
@@ -356,7 +384,16 @@ async function handleNew(
 		notify(ctx, "Usage: /sp new <id> --scope global|project", "warning");
 		return;
 	}
-	const scope = scopeFromFlag(args.flags) ?? "global";
+	const { scope: scopeFlag, invalid } = parseScope(args.flags);
+	if (invalid !== undefined) {
+		notify(
+			ctx,
+			`Invalid --scope "${invalid}". Use global or project.`,
+			"error",
+		);
+		return;
+	}
+	const scope = scopeFlag ?? "global";
 	if (scope === "project" && !ctx.isProjectTrusted()) {
 		notify(
 			ctx,
@@ -366,12 +403,18 @@ async function handleNew(
 		return;
 	}
 	const root = configRootFor(runtime, ctx, scope);
-	const filePath = path.join(root, "profiles", `${id}.md`);
-	if (fs.existsSync(filePath)) {
-		notify(ctx, `${filePath} already exists.`, "error");
-		return;
-	}
+	const directory = path.join(root, "profiles");
+	const filePath = path.join(directory, `${id}.md`);
 	try {
+		fs.mkdirSync(directory, { recursive: true });
+		if (!isRealPathInside(root, directory)) {
+			notify(ctx, `Refusing to write outside ${root}.`, "error");
+			return;
+		}
+		if (fs.existsSync(filePath)) {
+			notify(ctx, `${filePath} already exists.`, "error");
+			return;
+		}
 		atomicWriteFile(
 			filePath,
 			"<!-- Profile body. Replace this comment with the instructions for this profile. -->\n",
@@ -419,6 +462,12 @@ async function handleEdit(
 		return;
 	}
 	try {
+		if (
+			!isRealPathInside(configRootFor(runtime, ctx, ref.scope), profile.path)
+		) {
+			notify(ctx, "Refusing to write outside the authorized root.", "error");
+			return;
+		}
 		atomicWriteFile(profile.path, updated);
 		runtime.reload();
 		runtime.ensure(ctx);
@@ -447,7 +496,16 @@ async function handleBind(
 		notify(ctx, ref, "error");
 		return;
 	}
-	const scope = scopeFromFlag(args.flags) ?? "global";
+	const { scope: scopeFlag, invalid } = parseScope(args.flags);
+	if (invalid !== undefined) {
+		notify(
+			ctx,
+			`Invalid --scope "${invalid}". Use global or project.`,
+			"error",
+		);
+		return;
+	}
+	const scope: Scope = scopeFlag ?? ref.scope;
 
 	let provider = flagString(args.flags, "provider") ?? "*";
 	let model = flagString(args.flags, "model") ?? "*";
@@ -538,7 +596,16 @@ async function handleUnbind(
 		);
 		return;
 	}
-	const scope = scopeFromFlag(args.flags) ?? "global";
+	const { scope: scopeFlag, invalid } = parseScope(args.flags);
+	if (invalid !== undefined) {
+		notify(
+			ctx,
+			`Invalid --scope "${invalid}". Use global or project.`,
+			"error",
+		);
+		return;
+	}
+	const scope = scopeFlag ?? "global";
 	try {
 		let removed = 0;
 		editConfig(runtime, ctx, scope, (config) => {
@@ -691,9 +758,6 @@ export function registerCommands(pi: ExtensionAPI, runtime: Runtime): void {
 				};
 				switch (subcommand) {
 					case "interactive":
-						if (runtime.hasSessionSelection()) {
-							runtime.applyConfigSelection();
-						}
 						if (ctx.hasUI) {
 							await interactiveSelect(runtime, ctx);
 						} else {

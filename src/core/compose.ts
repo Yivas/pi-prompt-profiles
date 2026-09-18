@@ -1,14 +1,9 @@
 import { createHash } from "node:crypto";
+import { MANAGED_BEGIN, MANAGED_END } from "./markers.js";
 import { formatRef } from "./refs.js";
 import type { ResolvedProfile } from "./types.js";
 
-/**
- * Unambiguous delimiters. They include the product name and a version so the
- * extension recognizes only blocks that it emitted itself, and never removes
- * unrelated text that merely contains a similar label.
- */
-export const MANAGED_BEGIN = "<!-- pi-prompt-profiles:begin v1 -->";
-export const MANAGED_END = "<!-- pi-prompt-profiles:end -->";
+export { MANAGED_BEGIN, MANAGED_END } from "./markers.js";
 
 const CONTROL_TEXT = [
 	"## Managed system prompt profile",
@@ -48,22 +43,22 @@ export interface StripResult {
 	unterminated: boolean;
 }
 
-/** Removes every complete block emitted by this extension. */
+/**
+ * Removes the leading managed block, if any. This extension always prepends its
+ * block, so only a block at the very start of the prompt can be its own. Text
+ * elsewhere in the prompt that merely contains the markers is left untouched.
+ */
 export function stripManagedBlocks(prompt: string): StripResult {
 	let text = prompt;
 	let removed = 0;
 	let unterminated = false;
-	while (true) {
-		const start = text.indexOf(MANAGED_BEGIN);
-		if (start < 0) {
-			break;
-		}
-		const end = text.indexOf(MANAGED_END, start + MANAGED_BEGIN.length);
+	while (text.startsWith(MANAGED_BEGIN)) {
+		const end = text.indexOf(MANAGED_END, MANAGED_BEGIN.length);
 		if (end < 0) {
 			unterminated = true;
 			break;
 		}
-		text = text.slice(0, start) + text.slice(end + MANAGED_END.length);
+		text = text.slice(end + MANAGED_END.length).replace(/^\n+/, "");
 		removed += 1;
 	}
 	return { text, removed, unterminated };

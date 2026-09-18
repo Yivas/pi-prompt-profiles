@@ -51,6 +51,16 @@ describe("applyManagedPrompt", () => {
 		expect(cleared).toContain("BASE PROMPT");
 	});
 
+	it("leaves markers that are not our leading block", () => {
+		const base = `INTRO\n${MANAGED_BEGIN}\nquoted docs\n${MANAGED_END}\nNATIVE`;
+		const stripped = stripManagedBlocks(base);
+		expect(stripped.removed).toBe(0);
+		expect(stripped.text).toBe(base);
+		const result = applyManagedPrompt(base, profile);
+		expect(result.systemPrompt).toContain("quoted docs");
+		expect(result.systemPrompt).toContain("NATIVE");
+	});
+
 	it("does not remove a foreign block without our end marker", () => {
 		const foreign = `${MANAGED_BEGIN}\nforeign text without end`;
 		const result = stripManagedBlocks(foreign);

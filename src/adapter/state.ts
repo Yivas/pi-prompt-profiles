@@ -47,6 +47,9 @@ export function readPersistedSelection(
 			if (parsed) {
 				return parsed;
 			}
+			// The newest selection entry is authoritative. If it cannot be parsed,
+			// fall back to the default instead of resurrecting an older pin.
+			return undefined;
 		}
 	}
 	return undefined;

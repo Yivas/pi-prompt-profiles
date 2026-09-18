@@ -107,7 +107,7 @@ export default function piPromptProfiles(pi: ExtensionAPI): void {
 		try {
 			runtime.reload();
 			runtime.ensure(ctx);
-			if (!runtime.restoreFromSession(ctx) && !runtime.hasSessionSelection()) {
+			if (!runtime.restoreFromSession(ctx)) {
 				runtime.applyConfigSelection();
 			}
 			runtime.updateStatus(ctx);

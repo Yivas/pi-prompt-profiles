@@ -154,6 +154,11 @@ function selectBinding(
 				),
 			);
 			ignored.push(...result.ignored);
+			// A project that defines conflicting rules does not fall through to
+			// global bindings; that would contradict project-over-global scope.
+			if (group.scope === "project") {
+				return { ignored };
+			}
 			continue;
 		}
 		if (result.winner) {

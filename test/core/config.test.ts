@@ -107,6 +107,24 @@ describe("loadConfigFile", () => {
 		).toBe(true);
 	});
 
+	it("drops a rule with an invalid field instead of widening it", () => {
+		const result = loadConfigFile(
+			writeConfig(
+				JSON.stringify({
+					version: 1,
+					bindings: [
+						{ id: "x", profile: "global:base", match: [{ provider: 123 }] },
+					],
+				}),
+			),
+			"global",
+		);
+		expect(result.config?.bindings).toHaveLength(0);
+		expect(
+			result.diagnostics.some((entry) => entry.code === "config-binding-match"),
+		).toBe(true);
+	});
+
 	it("warns that inheritGlobalBindings is project-only", () => {
 		const result = loadConfigFile(
 			writeConfig(JSON.stringify({ version: 1, inheritGlobalBindings: false })),

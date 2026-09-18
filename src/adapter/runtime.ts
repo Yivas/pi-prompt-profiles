@@ -141,6 +141,12 @@ export class Runtime {
 		if (this.loaded && this.loaded.cwd === ctx.cwd) {
 			return this.loaded;
 		}
+		if (this.loaded && this.loaded.cwd !== ctx.cwd) {
+			// A different project must not inherit a cached resolution or status.
+			this.resolved = undefined;
+			this.applied = undefined;
+			this.observed = undefined;
+		}
 		this.loaded = loadState({
 			cwd: ctx.cwd,
 			agentDir: this.agentDir,
@@ -170,6 +176,10 @@ export class Runtime {
 		if (!loaded) {
 			return;
 		}
+		// The config baseline replaces any previous resolution: clear the cache so
+		// the next turn cannot return a stale profile under a new status.
+		this.resolved = undefined;
+		this.applied = undefined;
 		const projectSelection = isProjectActive(this.sources())
 			? loaded.projectConfig.config?.selection
 			: undefined;

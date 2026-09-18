@@ -200,6 +200,43 @@ describe("resolveProfile", () => {
 		).toBe(true);
 	});
 
+	it("does not fall back to global bindings when project rules conflict", () => {
+		const sources = build({
+			projectTrusted: true,
+			globalConfig: {
+				version: 1,
+				bindings: [
+					{ id: "g", profile: "global:base", match: [{ provider: "*" }] },
+				],
+			},
+			projectConfig: {
+				version: 1,
+				bindings: [
+					{
+						id: "a",
+						profile: "project:x",
+						match: [{ provider: "deepseek", model: "deepseek-chat" }],
+					},
+					{
+						id: "b",
+						profile: "project:y",
+						match: [{ provider: "deepseek", model: "deepseek-chat" }],
+					},
+				],
+			},
+			globalProfiles: catalog("global", [{ id: "base", content: "BASE" }]),
+			projectProfiles: catalog("project", [
+				{ id: "x", content: "X" },
+				{ id: "y", content: "Y" },
+			]),
+		});
+		const resolution = resolveProfile({ mode: "auto" }, model, sources);
+		expect(resolution.profile).toBeUndefined();
+		expect(
+			resolution.diagnostics.some((entry) => entry.code === "binding-conflict"),
+		).toBe(true);
+	});
+
 	it("honors inheritGlobalBindings: false", () => {
 		const sources = build({
 			projectTrusted: true,
