@@ -1,0 +1,13 @@
+/*
+ * Starlight reserves a second grid column for the hero image. When the hero has
+ * no image and no hero-html, that column stays empty and squeezes the title,
+ * tagline and actions into half the content width. Verified on Starlight 0.42.2:
+ * `.hero` still uses a two-column grid, so this scoped rule collapses it to one
+ * column. It only matches heroes without an image, and it uses the documented
+ * 50rem breakpoint. Re-check when Starlight is updated.
+ */
+@media (min-width: 50rem) {
+	.hero:not(:has(> img, > .hero-html)) {
+		grid-template-columns: 100%;
+	}
+}

@@ -9,6 +9,11 @@ export default defineConfig({
 			title: "pi-prompt-profiles",
 			description:
 				"Model-aware system prompt profiles for Pi, written in Markdown.",
+			logo: {
+				src: "./src/assets/logo.svg",
+				alt: "pi-prompt-profiles",
+			},
+			customCss: ["./src/styles/custom.css"],
 			social: [
 				{
 					icon: "github",

@@ -1,3 +1,5 @@
+<p align="center"><img src="https://yivas.github.io/pi-prompt-profiles/logo.svg" alt="pi-prompt-profiles: a pi glyph on a dark rounded square" width="72" height="72"></p>
+
 # pi-prompt-profiles
 
 Model-aware system prompt profiles for [Pi](https://github.com/earendil-works/pi),
