@@ -5,6 +5,7 @@
 Model-aware system prompt profiles for [Pi](https://github.com/earendil-works/pi),
 written in Markdown and switched without restarting Pi.
 
+[![npm version](https://img.shields.io/npm/v/pi-prompt-profiles.svg)](https://www.npmjs.com/package/pi-prompt-profiles)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 `pi-prompt-profiles` keeps your system prompts as plain Markdown files, lets you
@@ -23,8 +24,7 @@ family. It does not choose the model, change the provider, or route execution.
 ## Status
 
 - Version `0.1.0`, first public version.
-- Not published to npm yet. The local install path is the supported way to try
-  it today.
+- Published on npm as [`pi-prompt-profiles`](https://www.npmjs.com/package/pi-prompt-profiles).
 - Verified against `@earendil-works/pi-coding-agent` **0.85.1** only. See
   [docs/compatibility.md](docs/compatibility.md) for the exact contracts and
   limits.
@@ -36,28 +36,26 @@ family. It does not choose the model, change the provider, or route execution.
 
 ## Install
 
-Not published yet, so install from a local checkout:
+```bash
+pi install npm:pi-prompt-profiles
+```
+
+Try it for a single run without changing your settings:
+
+```bash
+pi -e npm:pi-prompt-profiles
+```
+
+From a local checkout instead:
 
 ```bash
 git clone https://github.com/Yivas/pi-prompt-profiles
 cd pi-prompt-profiles
 npm install
-```
-
-Then load it without changing your global configuration:
-
-```bash
-cd /path/to/your/project
-pi -e /path/to/pi-prompt-profiles
-```
-
-To install it for real, from the Pi CLI:
-
-```bash
 pi install /path/to/pi-prompt-profiles
 ```
 
-That writes to your Pi settings; it does not copy or touch your profiles.
+Installing writes to your Pi settings; it does not copy or touch your profiles.
 
 ## Your first profile
 
