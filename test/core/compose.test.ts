@@ -27,6 +27,14 @@ describe("composeManagedBlock", () => {
 	it("is stable for the same content", () => {
 		expect(composeManagedBlock(profile)).toBe(composeManagedBlock(profile));
 	});
+
+	it("declares the profile the primary system instructions without naming the extension", () => {
+		const block = composeManagedBlock(profile);
+		expect(block).toContain("primary system instructions");
+		expect(block).toContain("System instructions");
+		expect(block).not.toContain("pi-prompt-profiles");
+		expect(block).toContain("system-instructions:begin v1");
+	});
 });
 
 describe("applyManagedPrompt", () => {

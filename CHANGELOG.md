@@ -7,6 +7,19 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+## 0.3.0 - 2026-09-18
+
+### Changed
+
+- The managed block now declares the profile the primary system instructions and
+  requires them to be followed over any conflicting instruction.
+- The block no longer names the extension, and its begin and end markers are
+  neutral.
+
+### Removed
+
+- The caveat that the ordering was not a guarantee of obedience.
+
 ## 0.2.0 - 2026-09-18
 
 ### Added

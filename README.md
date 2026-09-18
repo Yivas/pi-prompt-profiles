@@ -6,7 +6,7 @@ written in Markdown and switched without restarting Pi.
 [![npm version](https://img.shields.io/npm/v/pi-prompt-profiles.svg)](https://www.npmjs.com/package/pi-prompt-profiles)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Version `0.2.0`, published on npm and verified against Pi `0.85.1`.
+Version `0.3.0`, published on npm and verified against Pi `0.85.1`.
 
 [Website](https://yivas.github.io/pi-prompt-profiles/) · [Install](#install) · [Command reference](https://yivas.github.io/pi-prompt-profiles/reference/commands/) · [Releases](https://github.com/Yivas/pi-prompt-profiles/releases) · [Contributing](https://github.com/Yivas/pi-prompt-profiles/blob/main/CONTRIBUTING.md)
 

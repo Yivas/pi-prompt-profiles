@@ -1,6 +1,6 @@
 {
 	"name": "pi-prompt-profiles",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Model-aware system prompt profiles for Pi, written in Markdown.",
 	"license": "MIT",
 	"repository": {

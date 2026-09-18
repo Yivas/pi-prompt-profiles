@@ -110,15 +110,15 @@ permissions.
 
 `before_agent_start` receives the chained `event.systemPrompt`. The extension:
 1. removes every block it previously emitted (matched by an unambiguous begin
-   and end marker that includes the product name and a version);
+   and end marker);
 2. prepends exactly one managed block;
 3. returns the result as `systemPrompt`, which Pi uses for that turn.
 
-The block contains a short control statement, the specific profile and then its
-bases. It states that the profile wins over auxiliary local instructions on
-conflict and that repository instructions still apply elsewhere. It is an
-instruction to the model, not a top-level API role: position in the string does
-not create a privileged message type.
+The block opens with a short control statement that declares the profile the
+primary system instructions and requires them to be followed over any conflicting
+instruction. It then emits the specific profile and its bases. This is prompt
+text: it asserts precedence and primacy, and it still does not create a
+privileged message type at the API level.
 
 Composition is idempotent and stable: the same selection and content produce
 byte-identical text, with no timestamps, random ids or diagnostics inside the

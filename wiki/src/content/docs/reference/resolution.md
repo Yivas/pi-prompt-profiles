@@ -46,10 +46,11 @@ permissions.
 
 ## Composition
 
-The active profile is emitted first, then its bases. The block states that the
-specific profile wins over its bases on conflict, and that repository
-instructions still apply elsewhere. This is an instruction to the model, not a
-top-level API role.
+The block opens with a control statement that declares these the primary system
+instructions, to be followed over any conflicting instruction. The specific
+profile is emitted first, then its bases; where they conflict, the specific one
+wins. This is prompt text: it asserts primacy, and it still does not create a
+privileged message type at the API level.
 
 Composition is idempotent: the extension removes its own leading block and
 prepends exactly one, so the prompt never accumulates duplicates.
