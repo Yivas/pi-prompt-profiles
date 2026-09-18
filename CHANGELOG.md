@@ -7,6 +7,12 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+### Changed
+
+- The managed block no longer names the active profile, its scope or the
+  inherited base. Layers are emitted as plain text without headings, so the
+  prompt never reveals which profile is in use.
+
 ## 0.3.0 - 2026-09-18
 
 ### Changed

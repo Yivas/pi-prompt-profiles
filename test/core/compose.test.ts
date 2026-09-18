@@ -6,6 +6,7 @@ import {
 	MANAGED_END,
 	stripManagedBlocks,
 } from "../../src/core/compose.js";
+import { formatRef } from "../../src/core/refs.js";
 import type { ResolvedProfile } from "../../src/core/types.js";
 
 const profile: ResolvedProfile = {
@@ -34,6 +35,15 @@ describe("composeManagedBlock", () => {
 		expect(block).toContain("System instructions");
 		expect(block).not.toContain("pi-prompt-profiles");
 		expect(block).toContain("system-instructions:begin v1");
+	});
+
+	it("never writes the profile id, its scope or a heading into the prompt", () => {
+		const block = composeManagedBlock(profile);
+		for (const layer of profile.layers) {
+			expect(block).not.toContain(formatRef(layer.ref));
+		}
+		expect(block).not.toContain("### Profile:");
+		expect(block).not.toContain("### Inherited profile:");
 	});
 });
 

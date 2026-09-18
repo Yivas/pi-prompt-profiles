@@ -116,9 +116,11 @@ permissions.
 
 The block opens with a short control statement that declares the profile the
 primary system instructions and requires them to be followed over any conflicting
-instruction. It then emits the specific profile and its bases. This is prompt
-text: it asserts precedence and primacy, and it still does not create a
-privileged message type at the API level.
+instruction. It then emits the specific profile and its bases, separated only by
+blank lines: the extension writes no heading, id or scope into the prompt, so the
+block carries no identifier for the active profile. This is prompt text: it
+asserts precedence and primacy, and it still does not create a privileged message
+type at the API level.
 
 Composition is idempotent and stable: the same selection and content produce
 byte-identical text, with no timestamps, random ids or diagnostics inside the

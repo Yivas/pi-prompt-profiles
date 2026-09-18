@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { MANAGED_BEGIN, MANAGED_END } from "./markers.js";
-import { formatRef } from "./refs.js";
 import type { ResolvedProfile } from "./types.js";
 
 export { MANAGED_BEGIN, MANAGED_END } from "./markers.js";
@@ -25,13 +24,12 @@ function hashText(text: string): string {
 
 export function composeManagedBlock(profile: ResolvedProfile): string {
 	const parts: string[] = [MANAGED_BEGIN, CONTROL_TEXT, ""];
-	profile.layers.forEach((layer, index) => {
-		const heading =
-			index === 0
-				? `### Profile: ${formatRef(layer.ref)}`
-				: `### Inherited profile: ${formatRef(layer.ref)} (base)`;
-		parts.push(heading, "", layer.content, "");
-	});
+	// Layers carry no heading: the prompt must not reveal the profile id, its
+	// scope or the fact that a base profile was inherited. Order plus a blank
+	// line is enough to keep them apart.
+	for (const layer of profile.layers) {
+		parts.push(layer.content, "");
+	}
 	parts.push(MANAGED_END);
 	return parts.join("\n");
 }
