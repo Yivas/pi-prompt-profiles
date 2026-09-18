@@ -18,4 +18,6 @@
 
 - [ ] The change stays within the documented scope.
 - [ ] Tests cover the new behavior.
+- [ ] Documentation is updated when the change affects commands, configuration or behavior.
+- [ ] Risks, breaking changes and compatibility are stated above.
 - [ ] No private profiles, tokens or session data are included.

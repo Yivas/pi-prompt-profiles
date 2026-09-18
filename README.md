@@ -3,10 +3,11 @@
 Model-aware system prompt profiles for [Pi](https://github.com/earendil-works/pi),
 written in Markdown and switched without restarting Pi.
 
-[![npm version](https://img.shields.io/npm/v/pi-prompt-profiles.svg)](https://www.npmjs.com/package/pi-prompt-profiles)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[Website](https://yivas.github.io/pi-prompt-profiles/) · [Install](#install) · [Commands](#commands) · [Configuration](#configuration) · [Releases](https://github.com/Yivas/pi-prompt-profiles/releases) · [Contributing](CONTRIBUTING.md)
+Version `0.1.0`, verified against Pi `0.85.1`.
+
+[Website](https://yivas.github.io/pi-prompt-profiles/) · [Install](#install) · [Command reference](https://yivas.github.io/pi-prompt-profiles/reference/commands/) · [Releases](https://github.com/Yivas/pi-prompt-profiles/releases) · [Contributing](https://github.com/Yivas/pi-prompt-profiles/blob/main/CONTRIBUTING.md)
 
 `pi-prompt-profiles` keeps your system prompts as plain Markdown files, lets you
 switch the active one per session, and binds a profile to a model so it is chosen
@@ -24,7 +25,7 @@ family. It does not choose the model, change the provider, or route execution.
 ## Status
 
 - Version `0.1.0`, first public version.
-- Published on npm as [`pi-prompt-profiles`](https://www.npmjs.com/package/pi-prompt-profiles).
+- Not published to npm yet; install from a local checkout (see [Install](#install)).
 - Verified against `@earendil-works/pi-coding-agent` **0.85.1** only. See
   [docs/compatibility.md](docs/compatibility.md) for the exact contracts and
   limits.
@@ -36,23 +37,19 @@ family. It does not choose the model, change the provider, or route execution.
 
 ## Install
 
-```bash
-pi install npm:pi-prompt-profiles
-```
-
-Try it for a single run without changing your settings:
-
-```bash
-pi -e npm:pi-prompt-profiles
-```
-
-From a local checkout instead:
+From a local checkout:
 
 ```bash
 git clone https://github.com/Yivas/pi-prompt-profiles
 cd pi-prompt-profiles
 npm install
 pi install /path/to/pi-prompt-profiles
+```
+
+Load it for a single run without changing your settings:
+
+```bash
+pi -e /path/to/pi-prompt-profiles
 ```
 
 Installing writes to your Pi settings; it does not copy or touch your profiles.
@@ -94,27 +91,19 @@ A complete fictional example lives in [examples/](examples/).
 
 ## Commands
 
+Run `/sp` with no arguments for a guided menu. The everyday commands:
+
 | Command | Effect |
 | ------- | ------ |
-| `/sp` | Interactive selector (TUI and RPC modes). |
-| `/sp list [--scope global\|project]` | List profiles. |
-| `/sp use <profile>` | Pin a profile for this session, regardless of the model. |
+| `/sp` | Guided menu: choose, create, edit, bind, set default, status, preview, reload, off. |
+| `/sp use <profile>` | Pin a profile for this session. |
 | `/sp auto` | Remove the pin and resolve from bindings and defaults. |
+| `/sp status` | Show mode, origin, model and profile. |
 | `/sp off` | Disable the manager for this session. |
-| `/sp status` | Show mode, origin, model, profile and the last observation. |
-| `/sp why` | Explain the resolution, including discarded rules. |
-| `/sp preview` | Show the managed block and its size. May contain private text. |
-| `/sp bind <profile> [--provider <p>] [--model <m>] [--scope ...] [--priority <n>]` | Add a model binding. Run without flags for a model picker. |
-| `/sp unbind <binding-id> [--scope global\|project]` | Remove a binding. |
-| `/sp reload` | Re-read config and profiles from disk. |
-| `/sp validate` | Report configuration problems. |
-| `/sp new <id> [--scope global\|project]` | Create a profile file. |
-| `/sp edit <profile>` | Edit a profile in Pi's editor. |
-| `/sp default <profile> [--scope global\|project]` | Set `defaultProfile`. |
 
-`/sp use` and `/sp auto` change only this session. They do not modify
-`config.json`. Persistent operations require an explicit `--scope` or a
-user-selected scope.
+The full command and flag reference lives in the
+[wiki](https://yivas.github.io/pi-prompt-profiles/reference/commands/). `/sp use`
+and `/sp auto` change only this session; they do not modify `config.json`.
 
 ## Flags
 
@@ -132,30 +121,17 @@ normal configuration.
 
 ## Precedence
 
-Selection, from highest to lowest:
+Selection: session (flag or `/sp use`) > trusted project config > global config
+> auto.
 
-```text
-session (flag or /sp use) > trusted project config > global config > auto
-```
+In `auto` mode: project bindings, then global bindings (unless the project sets
+`inheritGlobalBindings: false`), then the project `defaultProfile`, then the
+global one, then nothing (Pi keeps its native prompt). Explicit rules come before
+defaults. Higher `priority` wins, then the most specific rule; `*` matches any
+characters including `/`.
 
-In `auto` mode:
-
-```text
-1. project bindings
-2. global bindings        (unless the project sets inheritGlobalBindings: false)
-3. project defaultProfile
-4. global defaultProfile
-5. none                   (Pi keeps its native prompt)
-```
-
-Explicit rules come before defaults. Within a scope, higher `priority` wins,
-then the most specific rule. A rule combines `provider` and `model` with AND and
-the array with OR. Matching is full string; `*` matches any characters including
-`/`, so `deepseek/*` matches `deepseek/chat`. There are no regular expressions.
-
-The specific profile is emitted before its bases. The block tells the model that
-the specific profile wins over its bases on conflict; inherited profiles only
-fill in what it does not contradict. That is an instruction, not a guarantee.
+The full resolution and composition rules are documented in the
+[wiki](https://yivas.github.io/pi-prompt-profiles/reference/resolution/).
 
 ## Trust and privacy
 

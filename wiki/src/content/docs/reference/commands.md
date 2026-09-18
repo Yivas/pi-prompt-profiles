@@ -26,7 +26,7 @@ Running `/sp` with no arguments opens a menu:
 | `/sp status` | Show mode, origin, model, profile and the last observation. |
 | `/sp why` | Explain the resolution, including discarded rules. |
 | `/sp preview` | Show the managed block and its size. May contain private text. |
-| `/sp bind <profile> [--provider <p>] [--model <m>] [--scope ...] [--priority <n>]` | Add a model binding. Run it without flags to pick a model from a list. |
+| `/sp bind <profile> [--provider <p>] [--model <m>] [--scope ...] [--priority <n>] [--id <id>]` | Add a model binding. Run it without flags to pick a model from a list. |
 | `/sp unbind <binding-id> [--scope global\|project]` | Remove a binding. |
 | `/sp reload` | Re-read config and profiles from disk. |
 | `/sp validate` | Report configuration problems. |

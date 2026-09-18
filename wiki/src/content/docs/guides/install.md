@@ -16,8 +16,8 @@ From your project directory:
 pi -e /path/to/pi-prompt-profiles
 ```
 
-`-e` installs the package to a temporary directory for the current run only. Your
-Pi settings are not modified.
+`-e` loads the extension for the current run only. Your Pi settings are not
+modified.
 
 ## Install it
 
@@ -58,3 +58,8 @@ pi remove /path/to/pi-prompt-profiles
 
 Uninstalling does not delete your profiles or config. Delete the
 `system-prompts/` folders yourself if you want to remove the data.
+
+## Next
+
+[Write your first profile](/pi-prompt-profiles/guides/first-profile/) and see it
+applied to Pi.

@@ -2,6 +2,10 @@ name: Feature request
 description: Propose a change that fits the documented scope.
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste real profiles, tokens, session IDs or private data. Security problems go through SECURITY.md, not this form.
   - type: textarea
     id: problem
     attributes:
