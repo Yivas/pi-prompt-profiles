@@ -41,6 +41,7 @@ interface Harness {
 	statuses: Map<string, string>;
 	notices: string[];
 	appended: Array<{ customType: string; data: unknown }>;
+	selectCalls: string[][];
 	setModel(model: Model<Api>): void;
 }
 
@@ -115,6 +116,7 @@ async function setup(options: HarnessOptions = {}): Promise<Harness> {
 	const statuses = new Map<string, string>();
 	const notices: string[] = [];
 	const appended: Array<{ customType: string; data: unknown }> = [];
+	const selectCalls: string[][] = [];
 	const trusted = options.projectTrusted ?? false;
 	let model: Model<Api> | undefined = DEFAULT_MODEL;
 
@@ -157,7 +159,19 @@ async function setup(options: HarnessOptions = {}): Promise<Harness> {
 	const inputQueue = [...(options.inputAnswers ?? [])];
 	const editorQueue = [...(options.editorAnswers ?? [])];
 	const ui = {
-		select: async () => selectQueue.shift(),
+		select: async (_title: string, options: string[]) => {
+			selectCalls.push(options);
+			const wanted = selectQueue.shift();
+			if (wanted === undefined) {
+				return undefined;
+			}
+			return (
+				options.find((option) => option === wanted) ??
+				options.find((option) => option.startsWith(wanted)) ??
+				options.find((option) => option.includes(wanted)) ??
+				wanted
+			);
+		},
 		confirm: async () => false,
 		input: async () => inputQueue.shift(),
 		editor: async () => editorQueue.shift(),
@@ -184,6 +198,7 @@ async function setup(options: HarnessOptions = {}): Promise<Harness> {
 		statuses,
 		notices,
 		appended,
+		selectCalls,
 		setModel(next) {
 			model = next;
 		},
@@ -328,6 +343,24 @@ describe("extension integration (real runner, simulated transport)", () => {
 		expect(fs.readFileSync(file, "utf8")).toBe(
 			"You write tests before code.\n",
 		);
+	});
+
+	it("shows the folder of each profile in the interactive picker", async () => {
+		const harness = await setup({
+			selectAnswers: ["Choose a profile for this session"],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		const profilesDir = path.join(
+			harness.agentDir,
+			"system-prompts",
+			"profiles",
+		);
+		expect(
+			harness.selectCalls.some((options) =>
+				options.some((option) => option.includes(profilesDir)),
+			),
+		).toBe(true);
 	});
 
 	it("binds a profile to a model from the interactive menu", async () => {

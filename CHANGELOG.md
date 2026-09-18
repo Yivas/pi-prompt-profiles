@@ -7,6 +7,17 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+## 0.2.0 - 2026-09-18
+
+### Added
+
+- The `/sp` picker and `/sp list` now show the folder each profile lives in.
+
+### Removed
+
+- The managed block no longer states that it is not an administrative override of
+  provider-side restrictions.
+
 ## 0.1.0 - 2026-09-18
 
 ### Added

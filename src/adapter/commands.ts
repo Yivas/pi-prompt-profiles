@@ -172,7 +172,7 @@ function listProfiles(runtime: Runtime, scope: Scope | undefined): string[] {
 		for (const profile of catalog.profiles.values()) {
 			const suffix = profile.description ? ` — ${profile.description}` : "";
 			lines.push(
-				`${formatRef({ scope: profile.scope, id: profile.id })}${suffix}`,
+				`${formatRef({ scope: profile.scope, id: profile.id })} — ${path.dirname(profile.path)}${suffix}`,
 			);
 		}
 	};
@@ -196,14 +196,24 @@ function profileEntries(
 	if (loaded.projectTrusted) {
 		for (const profile of loaded.projectProfiles.profiles.values()) {
 			entries.push({
-				label: profileLabel("project", profile.id, profile.description),
+				label: profileLabel(
+					"project",
+					profile.id,
+					profile.path,
+					profile.description,
+				),
 				ref: { scope: "project", id: profile.id },
 			});
 		}
 	}
 	for (const profile of loaded.globalProfiles.profiles.values()) {
 		entries.push({
-			label: profileLabel("global", profile.id, profile.description),
+			label: profileLabel(
+				"global",
+				profile.id,
+				profile.path,
+				profile.description,
+			),
 			ref: { scope: "global", id: profile.id },
 		});
 	}
@@ -213,9 +223,11 @@ function profileEntries(
 function profileLabel(
 	scope: Scope,
 	id: string,
+	profilePath: string,
 	description: string | undefined,
 ): string {
-	return `${scope}:${id}${description ? ` — ${description}` : ""}`;
+	const suffix = description ? ` · ${description}` : "";
+	return `${scope}:${id} — ${path.dirname(profilePath)}${suffix}`;
 }
 
 async function chooseProfileInteractive(
