@@ -1,5 +1,3 @@
-<p align="center"><img src="https://yivas.github.io/pi-prompt-profiles/logo.svg" alt="pi-prompt-profiles: a pi glyph on a dark rounded square" width="72" height="72"></p>
-
 # pi-prompt-profiles
 
 Model-aware system prompt profiles for [Pi](https://github.com/earendil-works/pi),
@@ -7,6 +5,8 @@ written in Markdown and switched without restarting Pi.
 
 [![npm version](https://img.shields.io/npm/v/pi-prompt-profiles.svg)](https://www.npmjs.com/package/pi-prompt-profiles)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+[Website](https://yivas.github.io/pi-prompt-profiles/) · [Install](#install) · [Commands](#commands) · [Configuration](#configuration) · [Releases](https://github.com/Yivas/pi-prompt-profiles/releases) · [Contributing](CONTRIBUTING.md)
 
 `pi-prompt-profiles` keeps your system prompts as plain Markdown files, lets you
 switch the active one per session, and binds a profile to a model so it is chosen

@@ -9,10 +9,10 @@ export default defineConfig({
 			title: "pi-prompt-profiles",
 			description:
 				"Model-aware system prompt profiles for Pi, written in Markdown.",
-			logo: {
-				src: "./src/assets/logo.svg",
-				alt: "pi-prompt-profiles",
-			},
+			// The project ships no visual identity. Starlight always emits a favicon
+			// link, so a transparent 1x1 GIF keeps the asset valid without adding
+			// an icon or an SVG.
+			favicon: "/favicon.gif",
 			customCss: ["./src/styles/custom.css"],
 			social: [
 				{
