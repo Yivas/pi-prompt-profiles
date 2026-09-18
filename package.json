@@ -52,7 +52,7 @@
 		"@earendil-works/pi-coding-agent": "0.85.1",
 		"@types/node": "24.5.2",
 		"typescript": "5.9.3",
-		"vitest": "3.2.7"
+		"vitest": "^4.1.11"
 	},
 	"homepage": "https://github.com/Yivas/pi-prompt-profiles#readme",
 	"bugs": {
