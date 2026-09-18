@@ -50,6 +50,7 @@ interface HarnessOptions {
 	projectTrusted?: boolean;
 	selectAnswers?: string[];
 	inputAnswers?: string[];
+	editorAnswers?: string[];
 	models?: Array<{ provider: string; id: string }>;
 }
 
@@ -154,10 +155,12 @@ async function setup(options: HarnessOptions = {}): Promise<Harness> {
 	runner.bindCore(actions, contextActions);
 	const selectQueue = [...(options.selectAnswers ?? [])];
 	const inputQueue = [...(options.inputAnswers ?? [])];
+	const editorQueue = [...(options.editorAnswers ?? [])];
 	const ui = {
 		select: async () => selectQueue.shift(),
 		confirm: async () => false,
 		input: async () => inputQueue.shift(),
+		editor: async () => editorQueue.shift(),
 		notify: (message: string) => {
 			notices.push(message);
 		},
@@ -308,18 +311,23 @@ describe("extension integration (real runner, simulated transport)", () => {
 		expect(result?.systemPrompt ?? "").toContain("REVIEW PROFILE BODY");
 	});
 
-	it("creates a profile from the interactive menu", async () => {
+	it("creates a profile and writes its prompt body from the interactive menu", async () => {
 		const harness = await setup({
 			selectAnswers: ["Create a new profile", "Global (all projects)"],
 			inputAnswers: ["fresh"],
+			editorAnswers: ["You write tests before code."],
 		});
 		const command = harness.runner.getCommand("sp");
 		await command?.handler("", harness.runner.createCommandContext());
-		expect(
-			fs.existsSync(
-				path.join(harness.agentDir, "system-prompts", "profiles", "fresh.md"),
-			),
-		).toBe(true);
+		const file = path.join(
+			harness.agentDir,
+			"system-prompts",
+			"profiles",
+			"fresh.md",
+		);
+		expect(fs.readFileSync(file, "utf8")).toBe(
+			"You write tests before code.\n",
+		);
 	});
 
 	it("binds a profile to a model from the interactive menu", async () => {

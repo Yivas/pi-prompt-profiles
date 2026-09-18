@@ -308,6 +308,10 @@ async function interactiveMenu(
 				notify(ctx, "Cancelled.", "info");
 				return;
 			}
+			if (!isSafeId(id)) {
+				notify(ctx, `"${id}" is not a valid profile id.`, "error");
+				return;
+			}
 			const where = await ctx.ui.select("Where should it live?", [
 				"Project (this repository)",
 				"Global (all projects)",
@@ -315,12 +319,45 @@ async function interactiveMenu(
 			if (where === undefined) {
 				return;
 			}
-			await handleNew(runtime, ctx, {
-				positional: [id],
-				flags: {
-					scope: where === "Global (all projects)" ? "global" : "project",
-				},
-			});
+			const scope: Scope =
+				where === "Global (all projects)" ? "global" : "project";
+			if (scope === "project" && !ctx.isProjectTrusted()) {
+				notify(
+					ctx,
+					"This project is not trusted, so a project profile cannot be created.",
+					"error",
+				);
+				return;
+			}
+			const root = configRootFor(runtime, ctx, scope);
+			const directory = path.join(root, "profiles");
+			const filePath = path.join(directory, `${id}.md`);
+			try {
+				fs.mkdirSync(directory, { recursive: true });
+				if (!isRealPathInside(root, directory)) {
+					notify(ctx, `Refusing to write outside ${root}.`, "error");
+					return;
+				}
+				if (fs.existsSync(filePath)) {
+					notify(
+						ctx,
+						`${scope}:${id} already exists. Use "Edit a profile".`,
+						"warning",
+					);
+					return;
+				}
+				const body = await ctx.ui.editor(`New profile ${scope}:${id}`, "");
+				if (body === undefined) {
+					notify(ctx, "Cancelled. No file was created.", "info");
+					return;
+				}
+				atomicWriteFile(filePath, body.endsWith("\n") ? body : `${body}\n`);
+				runtime.reload();
+				runtime.ensure(ctx);
+				notify(ctx, `Created ${scope}:${id} and saved the prompt body.`);
+			} catch (cause) {
+				notify(ctx, messageOf(cause), "error");
+			}
 			break;
 		}
 		case "Edit a profile": {
