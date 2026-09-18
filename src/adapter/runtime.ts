@@ -1,0 +1,312 @@
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import { applyManagedPrompt, MANAGED_BEGIN } from "../core/compose.js";
+import { parseRef } from "../core/refs.js";
+import {
+	isProjectActive,
+	resolveProfile as resolveCore,
+	type ResolveSources,
+} from "../core/resolve.js";
+import { loadState, type LoadedState } from "../core/store.js";
+import type {
+	Diagnostic,
+	Resolution,
+	Scope,
+	Selection,
+} from "../core/types.js";
+import { identityOf, modelKey } from "./model.js";
+import {
+	readPersistedSelection,
+	SELECTION_CUSTOM_TYPE,
+	selectionLabel,
+	selectionToPersisted,
+} from "./state.js";
+
+export type SelectionOrigin = "default" | "config" | "session" | "flag";
+
+export interface ObservedPayload {
+	at: number;
+	systemFound: boolean;
+	blockPresent: boolean;
+	note: string;
+}
+
+export interface AppliedPrompt {
+	key: string;
+	label: string;
+	hash: string | undefined;
+}
+
+export function messageOf(cause: unknown): string {
+	return cause instanceof Error ? cause.message : String(cause);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function normalizeSelection(
+	selection: Selection,
+	scope: Scope,
+): Selection {
+	if (selection.mode !== "manual") {
+		return selection;
+	}
+	if (!selection.profile) {
+		return { mode: "auto" };
+	}
+	if (parseRef(selection.profile)) {
+		return selection;
+	}
+	return { mode: "manual", profile: `${scope}:${selection.profile}` };
+}
+
+function partText(part: unknown): string {
+	if (typeof part === "string") {
+		return part;
+	}
+	if (isRecord(part) && typeof part.text === "string") {
+		return part.text;
+	}
+	return "";
+}
+
+/** Best-effort extraction of the system text from a provider payload. */
+export function extractSystemText(payload: unknown): string | undefined {
+	if (!isRecord(payload)) {
+		return undefined;
+	}
+	const system = payload.system;
+	if (typeof system === "string") {
+		return system;
+	}
+	if (Array.isArray(system)) {
+		return system.map(partText).filter(Boolean).join("\n");
+	}
+	const messages = payload.messages;
+	if (Array.isArray(messages)) {
+		const parts: string[] = [];
+		for (const message of messages) {
+			if (!isRecord(message)) {
+				continue;
+			}
+			if (message.role === "system" || message.role === "developer") {
+				const text =
+					typeof message.content === "string"
+						? message.content
+						: Array.isArray(message.content)
+							? message.content.map(partText).filter(Boolean).join("\n")
+							: "";
+				if (text) {
+					parts.push(text);
+				}
+			}
+		}
+		if (parts.length > 0) {
+			return parts.join("\n\n");
+		}
+	}
+	return undefined;
+}
+
+export class Runtime {
+	loaded: LoadedState | undefined;
+	selection: Selection = { mode: "auto" };
+	origin: SelectionOrigin = "default";
+	resolved: { key: string; resolution: Resolution } | undefined;
+	observed: ObservedPayload | undefined;
+	applied: AppliedPrompt | undefined;
+	private hadSessionSelection = false;
+
+	constructor(
+		private readonly pi: ExtensionAPI,
+		readonly agentDir: string,
+		readonly configDirName: string,
+	) {}
+
+	hasSessionSelection(): boolean {
+		return this.hadSessionSelection;
+	}
+
+	/** Drops cached state so the next read reloads from disk. */
+	reload(): void {
+		this.loaded = undefined;
+		this.resolved = undefined;
+		this.observed = undefined;
+	}
+
+	ensure(ctx: ExtensionContext): LoadedState {
+		if (this.loaded && this.loaded.cwd === ctx.cwd) {
+			return this.loaded;
+		}
+		this.loaded = loadState({
+			cwd: ctx.cwd,
+			agentDir: this.agentDir,
+			configDirName: this.configDirName,
+			projectTrusted: ctx.isProjectTrusted(),
+		});
+		return this.loaded;
+	}
+
+	sources(): ResolveSources {
+		const loaded = this.loaded;
+		if (!loaded) {
+			throw new Error("state was not loaded");
+		}
+		return {
+			global: loaded.globalConfig,
+			project: loaded.projectConfig,
+			globalProfiles: loaded.globalProfiles,
+			projectProfiles: loaded.projectProfiles,
+			projectTrusted: loaded.projectTrusted,
+		};
+	}
+
+	/** Applies the config-provided selection as the baseline for the session. */
+	applyConfigSelection(): void {
+		const loaded = this.loaded;
+		if (!loaded) {
+			return;
+		}
+		const projectSelection = isProjectActive(this.sources())
+			? loaded.projectConfig.config?.selection
+			: undefined;
+		const baseline = projectSelection ?? loaded.globalConfig.config?.selection;
+		if (!baseline) {
+			this.selection = { mode: "auto" };
+			this.origin = "default";
+			return;
+		}
+		if (baseline.mode === "manual") {
+			const scope: Scope = projectSelection ? "project" : "global";
+			this.selection = normalizeSelection(
+				{ mode: "manual", profile: baseline.profile },
+				scope,
+			);
+		} else {
+			this.selection = { mode: baseline.mode };
+		}
+		this.origin = "config";
+	}
+
+	restoreFromSession(ctx: ExtensionContext): boolean {
+		const persisted = readPersistedSelection(ctx.sessionManager);
+		if (!persisted) {
+			this.hadSessionSelection = false;
+			return false;
+		}
+		this.hadSessionSelection = true;
+		this.origin = "session";
+		this.selection =
+			persisted.mode === "manual" && persisted.profile
+				? { mode: "manual", profile: persisted.profile }
+				: { mode: persisted.mode };
+		return true;
+	}
+
+	setSessionSelection(
+		ctx: ExtensionContext,
+		selection: Selection,
+		origin: SelectionOrigin,
+	): void {
+		this.selection = selection;
+		this.origin = origin;
+		this.hadSessionSelection = true;
+		this.resolved = undefined;
+		this.pi.appendEntry(SELECTION_CUSTOM_TYPE, selectionToPersisted(selection));
+		this.updateStatus(ctx);
+	}
+
+	invalidate(): void {
+		this.resolved = undefined;
+	}
+
+	resolve(ctx: ExtensionContext): Resolution {
+		const loaded = this.ensure(ctx);
+		const key = modelKey(ctx.model);
+		if (this.resolved && this.resolved.key === key) {
+			return this.resolved.resolution;
+		}
+		const resolution = resolveCore(this.selection, identityOf(ctx.model), {
+			global: loaded.globalConfig,
+			project: loaded.projectConfig,
+			globalProfiles: loaded.globalProfiles,
+			projectProfiles: loaded.projectProfiles,
+			projectTrusted: loaded.projectTrusted,
+		});
+		this.resolved = { key, resolution };
+		return resolution;
+	}
+
+	isPending(ctx: ExtensionContext): boolean {
+		return (
+			!this.applied ||
+			this.applied.key !== modelKey(ctx.model) ||
+			this.applied.label !== selectionLabel(this.selection)
+		);
+	}
+
+	markApplied(ctx: ExtensionContext, hash: string | undefined): void {
+		this.applied = {
+			key: modelKey(ctx.model),
+			label: selectionLabel(this.selection),
+			hash,
+		};
+	}
+
+	compose(
+		basePrompt: string,
+		ctx: ExtensionContext,
+	): { resolution: Resolution; systemPrompt?: string } {
+		const resolution = this.resolve(ctx);
+		if (resolution.mode === "off" || !resolution.profile) {
+			return { resolution };
+		}
+		const composed = applyManagedPrompt(basePrompt, resolution.profile);
+		return { resolution, systemPrompt: composed.systemPrompt };
+	}
+
+	observe(payload: unknown): void {
+		const system = extractSystemText(payload);
+		this.observed = {
+			at: Date.now(),
+			systemFound: system !== undefined,
+			blockPresent: system?.includes(MANAGED_BEGIN) ?? false,
+			note:
+				system === undefined
+					? "No system text was recognized in this provider payload."
+					: "System text observed at before_provider_request.",
+		};
+	}
+
+	diagnostics(): Diagnostic[] {
+		return this.loaded?.diagnostics ?? [];
+	}
+
+	errorDiagnostics(): Diagnostic[] {
+		return this.diagnostics().filter((entry) => entry.level === "error");
+	}
+
+	updateStatus(ctx: ExtensionContext): void {
+		let resolution: Resolution | undefined;
+		try {
+			resolution = this.resolve(ctx);
+		} catch {
+			resolution = undefined;
+		}
+		let text: string;
+		if (resolution?.mode === "off") {
+			text = "SP: off";
+		} else if (resolution?.profile) {
+			const pending = this.isPending(ctx) ? " · next run" : "";
+			text = `SP: ${resolution.profile.ref.id} [${this.selection.mode}]${pending}`;
+		} else if (this.selection.mode === "manual") {
+			text = "SP: manual (unresolved)";
+		} else {
+			text = "SP: auto (none)";
+		}
+		ctx.ui.setStatus("sp", text);
+	}
+}

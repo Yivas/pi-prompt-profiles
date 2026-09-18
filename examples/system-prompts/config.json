@@ -1,0 +1,23 @@
+{
+	"version": 1,
+	"selection": { "mode": "auto" },
+	"defaultProfile": "global:base",
+	"profiles": {
+		"base": { "description": "General working agreements." },
+		"review": {
+			"extends": "global:base",
+			"description": "Careful review of changes."
+		}
+	},
+	"bindings": [
+		{
+			"id": "review-family",
+			"profile": "global:review",
+			"priority": 0,
+			"match": [
+				{ "provider": "openrouter", "model": "deepseek/*" },
+				{ "provider": "deepseek", "model": "*" }
+			]
+		}
+	]
+}

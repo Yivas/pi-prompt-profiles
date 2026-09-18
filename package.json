@@ -1,0 +1,65 @@
+{
+	"name": "pi-prompt-profiles",
+	"version": "0.1.0",
+	"description": "Model-aware system prompt profiles for Pi, written in Markdown.",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Yivas/pi-prompt-profiles.git"
+	},
+	"keywords": [
+		"pi-package",
+		"pi",
+		"system-prompt",
+		"prompt-profiles"
+	],
+	"type": "module",
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"pi": {
+		"extensions": [
+			"./src/index.ts"
+		]
+	},
+	"files": [
+		"src",
+		"schema",
+		"examples",
+		"docs",
+		"README.md",
+		"CHANGELOG.md",
+		"LICENSE",
+		"SECURITY.md"
+	],
+	"scripts": {
+		"format": "biome format --write .",
+		"format:check": "biome format .",
+		"lint": "biome lint .",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"bench": "vitest bench --run",
+		"pack:check": "npm pack --dry-run"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": "*",
+		"@earendil-works/pi-coding-agent": "*"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.2.4",
+		"@earendil-works/pi-ai": "0.85.1",
+		"@earendil-works/pi-coding-agent": "0.85.1",
+		"@types/node": "24.5.2",
+		"typescript": "5.9.3",
+		"vitest": "3.2.7"
+	},
+	"homepage": "https://github.com/Yivas/pi-prompt-profiles#readme",
+	"bugs": {
+		"url": "https://github.com/Yivas/pi-prompt-profiles/issues"
+	},
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	}
+}

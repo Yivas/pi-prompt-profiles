@@ -1,0 +1,55 @@
+name: Bug report
+description: Report a reproducible problem with pi-prompt-profiles.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste real profiles, tokens, session IDs or private data. Security problems go through SECURITY.md, not this form.
+  - type: input
+    id: pi-version
+    attributes:
+      label: Pi version
+      description: Run `pi --version`.
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: pi-prompt-profiles version
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Minimal commands or files, with private data removed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: I removed private data from this report.
+          required: true

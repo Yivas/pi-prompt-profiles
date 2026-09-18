@@ -1,0 +1,114 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/Yivas/pi-prompt-profiles/schema/config.schema.json",
+	"title": "pi-prompt-profiles configuration",
+	"description": "Selection, optional metadata and model bindings for the pi-prompt-profiles extension. Stored at <agentDir>/system-prompts/config.json or <projectDir>/.pi/system-prompts/config.json.",
+	"type": "object",
+	"additionalProperties": true,
+	"required": ["version"],
+	"properties": {
+		"version": {
+			"const": 1,
+			"description": "Schema version. Unknown versions are rejected and Pi keeps its native prompt."
+		},
+		"selection": {
+			"description": "Baseline selection for a session, overridden by session-level actions.",
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["mode"],
+					"properties": { "mode": { "const": "auto" } }
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["mode", "profile"],
+					"properties": {
+						"mode": { "const": "manual" },
+						"profile": { "$ref": "#/$defs/profileReference" }
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["mode"],
+					"properties": { "mode": { "const": "off" } }
+				}
+			]
+		},
+		"defaultProfile": {
+			"$ref": "#/$defs/profileReference",
+			"description": "Profile used in auto mode when no binding matches."
+		},
+		"profiles": {
+			"type": "object",
+			"description": "Optional metadata keyed by profile id.",
+			"additionalProperties": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"extends": {
+						"$ref": "#/$defs/profileReference",
+						"description": "Single optional parent profile. A bare id resolves inside the same scope."
+					},
+					"description": { "type": "string" }
+				}
+			}
+		},
+		"bindings": {
+			"type": "array",
+			"maxItems": 200,
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["id", "profile", "match"],
+				"properties": {
+					"id": { "$ref": "#/$defs/id" },
+					"profile": { "$ref": "#/$defs/profileReference" },
+					"priority": {
+						"type": "number",
+						"description": "Higher wins. Defaults to 0."
+					},
+					"match": {
+						"type": "array",
+						"minItems": 1,
+						"description": "Rules are OR-ed; provider and model inside a rule are AND-ed.",
+						"items": {
+							"type": "object",
+							"additionalProperties": false,
+							"properties": {
+								"provider": {
+									"type": "string",
+									"minLength": 1,
+									"description": "Exact value or a single * wildcard. Omitted means *."
+								},
+								"model": {
+									"type": "string",
+									"minLength": 1,
+									"description": "Exact value or a single * wildcard. Omitted means *. A * crosses / in model ids."
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"inheritGlobalBindings": {
+			"type": "boolean",
+			"description": "Project-only. false makes the project ignore global bindings."
+		}
+	},
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+			"maxLength": 64
+		},
+		"profileReference": {
+			"type": "string",
+			"description": "A bare id, or an explicit global:id / project:id reference. Stored references are normalized to the explicit form.",
+			"pattern": "^(global:|project:)?[A-Za-z0-9][A-Za-z0-9._-]*$"
+		}
+	}
+}
