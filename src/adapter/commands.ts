@@ -185,52 +185,62 @@ function listProfiles(runtime: Runtime, scope: Scope | undefined): string[] {
 	return lines;
 }
 
-async function interactiveSelect(
+function profileEntries(
 	runtime: Runtime,
-	ctx: ExtensionCommandContext,
-): Promise<void> {
+): Array<{ label: string; ref: ProfileRef }> {
 	const loaded = runtime.loaded;
 	if (!loaded) {
-		return;
+		return [];
 	}
 	const entries: Array<{ label: string; ref: ProfileRef }> = [];
 	if (loaded.projectTrusted) {
 		for (const profile of loaded.projectProfiles.profiles.values()) {
 			entries.push({
-				label: `project:${profile.id}${profile.description ? ` — ${profile.description}` : ""}`,
+				label: profileLabel("project", profile.id, profile.description),
 				ref: { scope: "project", id: profile.id },
 			});
 		}
 	}
 	for (const profile of loaded.globalProfiles.profiles.values()) {
 		entries.push({
-			label: `global:${profile.id}${profile.description ? ` — ${profile.description}` : ""}`,
+			label: profileLabel("global", profile.id, profile.description),
 			ref: { scope: "global", id: profile.id },
 		});
 	}
+	return entries;
+}
+
+function profileLabel(
+	scope: Scope,
+	id: string,
+	description: string | undefined,
+): string {
+	return `${scope}:${id}${description ? ` — ${description}` : ""}`;
+}
+
+async function chooseProfileInteractive(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+	title = "Select a system prompt profile",
+): Promise<void> {
+	const entries = profileEntries(runtime);
 	if (entries.length === 0) {
-		notify(
-			ctx,
-			"No profiles found. Use /sp new <id> --scope global to create one.",
-			"warning",
-		);
+		notify(ctx, "No profiles found. Create one first.", "warning");
 		return;
 	}
-	const labels = [
-		"(auto) Resolve from bindings and defaults",
-		...entries.map((entry) => entry.label),
-		"(off) Disable the manager",
-	];
-	const choice = await ctx.ui.select("Select a system prompt profile", labels);
+	const auto = "(auto) Resolve from bindings and defaults";
+	const off = "(off) Disable the manager";
+	const labels = [auto, ...entries.map((entry) => entry.label), off];
+	const choice = await ctx.ui.select(title, labels);
 	if (choice === undefined) {
 		return;
 	}
-	if (choice === labels[0]) {
+	if (choice === auto) {
 		runtime.setSessionSelection(ctx, { mode: "auto" }, "session");
 		notify(ctx, "Selection: auto.");
 		return;
 	}
-	if (choice === labels[labels.length - 1]) {
+	if (choice === off) {
 		runtime.setSessionSelection(ctx, { mode: "off" }, "session");
 		notify(ctx, "Selection: off.");
 		return;
@@ -245,6 +255,118 @@ async function interactiveSelect(
 		"session",
 	);
 	notify(ctx, `Selection: ${formatRef(entry.ref)}.`);
+}
+
+async function pickProfileRef(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+): Promise<ProfileRef | undefined> {
+	const entries = profileEntries(runtime);
+	if (entries.length === 0) {
+		notify(ctx, "No profiles found. Create one first.", "warning");
+		return undefined;
+	}
+	const choice = await ctx.ui.select(
+		"Select a profile",
+		entries.map((entry) => entry.label),
+	);
+	return entries.find((entry) => entry.label === choice)?.ref;
+}
+
+/**
+ * One discoverable menu for the common actions, so a user does not have to
+ * remember subcommands to create, choose or bind a profile.
+ */
+async function interactiveMenu(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+): Promise<void> {
+	const actions = [
+		"Choose a profile for this session",
+		"Create a new profile",
+		"Edit a profile",
+		"Bind a profile to a model",
+		"Set the default profile",
+		"Show status",
+		"Preview the active profile",
+		"Reload from disk",
+		"Turn the manager off for this session",
+	];
+	const choice = await ctx.ui.select("System prompt profiles", actions);
+	if (choice === undefined) {
+		return;
+	}
+	switch (choice) {
+		case "Choose a profile for this session":
+			await chooseProfileInteractive(runtime, ctx);
+			break;
+		case "Create a new profile": {
+			const id = (
+				await ctx.ui.input("New profile id", "for example: review")
+			)?.trim();
+			if (!id) {
+				notify(ctx, "Cancelled.", "info");
+				return;
+			}
+			const where = await ctx.ui.select("Where should it live?", [
+				"Project (this repository)",
+				"Global (all projects)",
+			]);
+			if (where === undefined) {
+				return;
+			}
+			await handleNew(runtime, ctx, {
+				positional: [id],
+				flags: {
+					scope: where === "Global (all projects)" ? "global" : "project",
+				},
+			});
+			break;
+		}
+		case "Edit a profile": {
+			const ref = await pickProfileRef(runtime, ctx);
+			if (ref) {
+				await handleEdit(runtime, ctx, {
+					positional: [formatRef(ref)],
+					flags: {},
+				});
+			}
+			break;
+		}
+		case "Bind a profile to a model": {
+			const ref = await pickProfileRef(runtime, ctx);
+			if (ref) {
+				await handleBind(runtime, ctx, {
+					positional: [formatRef(ref)],
+					flags: {},
+				});
+			}
+			break;
+		}
+		case "Set the default profile": {
+			const ref = await pickProfileRef(runtime, ctx);
+			if (ref) {
+				await handleDefault(runtime, ctx, {
+					positional: [formatRef(ref)],
+					flags: {},
+				});
+			}
+			break;
+		}
+		case "Show status":
+			notify(ctx, statusText(runtime, ctx));
+			break;
+		case "Preview the active profile":
+			handlePreview(runtime, ctx);
+			break;
+		case "Reload from disk":
+			await handleReload(runtime, ctx);
+			break;
+		case "Turn the manager off for this session":
+			runtime.setSessionSelection(ctx, { mode: "off" }, "session");
+			notify(ctx, "Selection: off.");
+			break;
+	}
 }
 
 function statusText(runtime: Runtime, ctx: ExtensionCommandContext): string {
@@ -759,7 +881,7 @@ export function registerCommands(pi: ExtensionAPI, runtime: Runtime): void {
 				switch (subcommand) {
 					case "interactive":
 						if (ctx.hasUI) {
-							await interactiveSelect(runtime, ctx);
+							await interactiveMenu(runtime, ctx);
 						} else {
 							notify(
 								ctx,

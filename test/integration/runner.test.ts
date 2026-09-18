@@ -37,6 +37,7 @@ afterEach(() => {
 interface Harness {
 	runner: ExtensionRunner;
 	cwd: string;
+	agentDir: string;
 	statuses: Map<string, string>;
 	notices: string[];
 	appended: Array<{ customType: string; data: unknown }>;
@@ -47,6 +48,9 @@ interface HarnessOptions {
 	order?: "ours-first" | "extra-first";
 	extraSource?: string;
 	projectTrusted?: boolean;
+	selectAnswers?: string[];
+	inputAnswers?: string[];
+	models?: Array<{ provider: string; id: string }>;
 }
 
 const DEFAULT_MODEL = {
@@ -95,12 +99,16 @@ async function setup(options: HarnessOptions = {}): Promise<Harness> {
 	expect(loaded.errors).toEqual([]);
 
 	const sessionManager = SessionManager.inMemory(cwd);
+	const models = options.models ?? [];
+	const modelRegistry = {
+		getAvailable: () => models.map((entry) => ({ ...entry })),
+	} as unknown as ModelRegistry;
 	const runner = new ExtensionRunner(
 		loaded.extensions,
 		loaded.runtime,
 		cwd,
 		sessionManager,
-		{} as unknown as ModelRegistry,
+		modelRegistry,
 	);
 
 	const statuses = new Map<string, string>();
@@ -144,10 +152,12 @@ async function setup(options: HarnessOptions = {}): Promise<Harness> {
 	};
 
 	runner.bindCore(actions, contextActions);
+	const selectQueue = [...(options.selectAnswers ?? [])];
+	const inputQueue = [...(options.inputAnswers ?? [])];
 	const ui = {
-		select: async () => undefined,
+		select: async () => selectQueue.shift(),
 		confirm: async () => false,
-		input: async () => undefined,
+		input: async () => inputQueue.shift(),
 		notify: (message: string) => {
 			notices.push(message);
 		},
@@ -167,6 +177,7 @@ async function setup(options: HarnessOptions = {}): Promise<Harness> {
 	return {
 		runner,
 		cwd,
+		agentDir,
 		statuses,
 		notices,
 		appended,
@@ -279,6 +290,59 @@ describe("extension integration (real runner, simulated transport)", () => {
 		expect(seen).toEqual({
 			system: `${MANAGED_BEGIN}\n...\n`,
 			messages: [{ role: "user", content: "hi" }],
+		});
+	});
+
+	it("drives the interactive menu to pin a profile", async () => {
+		const harness = await setup({
+			selectAnswers: ["Choose a profile for this session", "global:review"],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		const result = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(result?.systemPrompt ?? "").toContain("REVIEW PROFILE BODY");
+	});
+
+	it("creates a profile from the interactive menu", async () => {
+		const harness = await setup({
+			selectAnswers: ["Create a new profile", "Global (all projects)"],
+			inputAnswers: ["fresh"],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		expect(
+			fs.existsSync(
+				path.join(harness.agentDir, "system-prompts", "profiles", "fresh.md"),
+			),
+		).toBe(true);
+	});
+
+	it("binds a profile to a model from the interactive menu", async () => {
+		const harness = await setup({
+			models: [{ provider: "deepseek", id: "deepseek-chat" }],
+			selectAnswers: [
+				"Bind a profile to a model",
+				"global:base",
+				"deepseek/deepseek-chat",
+			],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(config.bindings?.[0]?.profile).toBe("global:base");
+		expect(config.bindings?.[0]?.match?.[0]).toEqual({
+			provider: "deepseek",
+			model: "deepseek-chat",
 		});
 	});
 });

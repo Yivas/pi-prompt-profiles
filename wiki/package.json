@@ -1,0 +1,15 @@
+{
+	"name": "pi-prompt-profiles-wiki",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "astro dev",
+		"build": "astro build",
+		"preview": "astro preview",
+		"check": "astro check"
+	},
+	"dependencies": {
+		"@astrojs/starlight": "0.42.2",
+		"astro": "7.3.3"
+	}
+}

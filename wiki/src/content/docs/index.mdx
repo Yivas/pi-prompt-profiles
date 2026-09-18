@@ -1,0 +1,38 @@
+---
+title: pi-prompt-profiles
+description: Model-aware system prompt profiles for Pi, written in Markdown.
+hero:
+  title: pi-prompt-profiles
+  tagline: Model-aware system prompt profiles for Pi, written in Markdown and switched without restarting Pi.
+  actions:
+    - text: Install
+      link: /pi-prompt-profiles/guides/install/
+      icon: right-arrow
+      variant: primary
+    - text: Command reference
+      link: /pi-prompt-profiles/reference/commands/
+      icon: right-arrow
+      variant: minimal
+---
+
+`pi-prompt-profiles` keeps your system prompts as plain Markdown files, lets you
+switch the active one per session, and binds a profile to a model so it is chosen
+automatically. The active profile is prepended to the prompt Pi would send
+anyway, so tools, `AGENTS.md`, skills and every other instruction Pi loaded stay
+in place.
+
+## What it does not do
+
+It decides which instructions to apply. It does not choose the model, change the
+provider, set the thinking level or touch permissions.
+
+## Where to go next
+
+- [Install](guides/install/) — load the extension without changing your global configuration.
+- [Your first profile](guides/first-profile/) — write a profile and see it applied.
+- [Commands](reference/commands/) — the `/sp` command and its flags.
+- [Configuration](reference/configuration/) — the `config.json` schema.
+- [Resolution](reference/resolution/) — how a profile is selected.
+- [Compatibility](reference/compatibility/) — verified Pi contracts and limits.
+
+Version 0.1.0, verified against Pi `0.85.1`. Released under the MIT License.

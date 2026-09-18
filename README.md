@@ -194,6 +194,7 @@ yourself if you want to remove the data.
 
 ## Documentation
 
+- [Wiki](https://yivas.github.io/pi-prompt-profiles/) — guides, command reference and troubleshooting.
 - [docs/architecture.md](docs/architecture.md) — design, data flow, resolution.
 - [docs/compatibility.md](docs/compatibility.md) — verified Pi contracts and limits.
 - [examples/](examples/) — a fictional global setup.
