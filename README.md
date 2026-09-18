@@ -3,9 +3,10 @@
 Model-aware system prompt profiles for [Pi](https://github.com/earendil-works/pi),
 written in Markdown and switched without restarting Pi.
 
+[![npm version](https://img.shields.io/npm/v/pi-prompt-profiles.svg)](https://www.npmjs.com/package/pi-prompt-profiles)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Version `0.1.0`, verified against Pi `0.85.1`.
+Version `0.1.0`, published on npm and verified against Pi `0.85.1`.
 
 [Website](https://yivas.github.io/pi-prompt-profiles/) · [Install](#install) · [Command reference](https://yivas.github.io/pi-prompt-profiles/reference/commands/) · [Releases](https://github.com/Yivas/pi-prompt-profiles/releases) · [Contributing](https://github.com/Yivas/pi-prompt-profiles/blob/main/CONTRIBUTING.md)
 
@@ -25,7 +26,7 @@ family. It does not choose the model, change the provider, or route execution.
 ## Status
 
 - Version `0.1.0`, first public version.
-- Not published to npm yet; install from a local checkout (see [Install](#install)).
+- Published on npm as [`pi-prompt-profiles`](https://www.npmjs.com/package/pi-prompt-profiles).
 - Verified against `@earendil-works/pi-coding-agent` **0.85.1** only. See
   [docs/compatibility.md](docs/compatibility.md) for the exact contracts and
   limits.
@@ -37,19 +38,23 @@ family. It does not choose the model, change the provider, or route execution.
 
 ## Install
 
-From a local checkout:
+```bash
+pi install npm:pi-prompt-profiles
+```
+
+Load it for a single run without changing your settings:
+
+```bash
+pi -e npm:pi-prompt-profiles
+```
+
+From a local checkout instead:
 
 ```bash
 git clone https://github.com/Yivas/pi-prompt-profiles
 cd pi-prompt-profiles
 npm install
 pi install /path/to/pi-prompt-profiles
-```
-
-Load it for a single run without changing your settings:
-
-```bash
-pi -e /path/to/pi-prompt-profiles
 ```
 
 Installing writes to your Pi settings; it does not copy or touch your profiles.
