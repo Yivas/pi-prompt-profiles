@@ -102,6 +102,7 @@ Run `/sp` with no arguments for a guided menu. The everyday commands:
 | ------- | ------ |
 | `/sp` | Guided menu: choose, create, edit, bind, set default, status, preview, reload, off. |
 | `/sp use <profile>` | Pin a profile for this session. |
+| `/sp bind <profile>` | Add a model binding; the picker offers a provider and a model, including `(any provider)` and `(any model of ...)`. |
 | `/sp auto` | Remove the pin and resolve from bindings and defaults. |
 | `/sp status` | Show mode, origin, model and profile. |
 | `/sp off` | Disable the manager for this session. |
@@ -109,6 +110,9 @@ Run `/sp` with no arguments for a guided menu. The everyday commands:
 The full command and flag reference lives in the
 [wiki](https://yivas.github.io/pi-prompt-profiles/reference/commands/). `/sp use`
 and `/sp auto` change only this session; they do not modify `config.json`.
+
+Profile and model pickers filter as you type and keep at most ten rows visible,
+so a large model catalog never pushes the dialog off the screen.
 
 ## Flags
 

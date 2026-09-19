@@ -13,6 +13,11 @@ import {
 	isRealPathInside,
 	projectRoot,
 } from "../core/paths.js";
+import {
+	modelsOfProvider,
+	type PickerItem,
+	providerNames,
+} from "../core/picker.js";
 import { formatRef, parseRef } from "../core/refs.js";
 import type { Binding, Diagnostic, ProfileRef, Scope } from "../core/types.js";
 import {
@@ -20,6 +25,7 @@ import {
 	type RawConfig,
 	writeRawConfigIfUnchanged,
 } from "./config-edit.js";
+import { selectItem } from "./picker.js";
 import { messageOf, type Runtime } from "./runtime.js";
 
 const COMMAND_NAME = "sp";
@@ -242,31 +248,38 @@ async function chooseProfileInteractive(
 	}
 	const auto = "(auto) Resolve from bindings and defaults";
 	const off = "(off) Disable the manager";
-	const labels = [auto, ...entries.map((entry) => entry.label), off];
-	const choice = await ctx.ui.select(title, labels);
+	const items: PickerItem[] = [
+		{ value: "__auto__", label: auto },
+		...entries.map((entry) => ({
+			value: formatRef(entry.ref),
+			label: entry.label,
+		})),
+		{ value: "__off__", label: off },
+	];
+	const choice = await selectItem(ctx, { title, items });
 	if (choice === undefined) {
 		return;
 	}
-	if (choice === auto) {
+	if (choice === "__auto__") {
 		runtime.setSessionSelection(ctx, { mode: "auto" }, "session");
 		notify(ctx, "Selection: auto.");
 		return;
 	}
-	if (choice === off) {
+	if (choice === "__off__") {
 		runtime.setSessionSelection(ctx, { mode: "off" }, "session");
 		notify(ctx, "Selection: off.");
 		return;
 	}
-	const entry = entries.find((candidate) => candidate.label === choice);
-	if (!entry) {
+	const ref = parseRef(choice);
+	if (!ref) {
 		return;
 	}
 	runtime.setSessionSelection(
 		ctx,
-		{ mode: "manual", profile: formatRef(entry.ref) },
+		{ mode: "manual", profile: formatRef(ref) },
 		"session",
 	);
-	notify(ctx, `Selection: ${formatRef(entry.ref)}.`);
+	notify(ctx, `Selection: ${formatRef(ref)}.`);
 }
 
 async function pickProfileRef(
@@ -278,11 +291,17 @@ async function pickProfileRef(
 		notify(ctx, "No profiles found. Create one first.", "warning");
 		return undefined;
 	}
-	const choice = await ctx.ui.select(
-		"Select a profile",
-		entries.map((entry) => entry.label),
-	);
-	return entries.find((entry) => entry.label === choice)?.ref;
+	const choice = await selectItem(ctx, {
+		title: "Select a profile",
+		items: entries.map((entry) => ({
+			value: formatRef(entry.ref),
+			label: entry.label,
+		})),
+	});
+	if (choice === undefined) {
+		return undefined;
+	}
+	return parseRef(choice);
 }
 
 /**
@@ -648,6 +667,78 @@ async function handleEdit(
 	}
 }
 
+async function chooseBindingTarget(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+	ref: ProfileRef,
+): Promise<{ provider: string; model: string } | undefined> {
+	const models = ctx.modelRegistry.getAvailable().map((candidate) => ({
+		provider: String(candidate.provider),
+		id: String(candidate.id),
+	}));
+	const subtitle = bindingContext(runtime, ctx, ref);
+	const provider = await selectItem(ctx, {
+		title: `Bind ${formatRef(ref)} — choose a provider`,
+		subtitle,
+		items: [
+			{ value: "*", label: "(any provider)" },
+			...providerNames(models).map((name) => ({ value: name, label: name })),
+		],
+	});
+	if (provider === undefined) {
+		return undefined;
+	}
+	if (provider === "*") {
+		return { provider: "*", model: "*" };
+	}
+	const model = await selectItem(ctx, {
+		title: `Bind ${formatRef(ref)} — models of ${provider}`,
+		subtitle,
+		items: [
+			{ value: "*", label: `(any model of ${provider})` },
+			...modelsOfProvider(models, provider).map((entry) => ({
+				value: entry.id,
+				label: entry.id,
+			})),
+		],
+	});
+	if (model === undefined) {
+		return undefined;
+	}
+	return { provider, model };
+}
+
+/** One line describing the active model and the profile's current bindings. */
+function bindingContext(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+	ref: ProfileRef,
+): string {
+	const model = ctx.model;
+	const current = model
+		? `current model ${model.provider}/${model.id}`
+		: "no model selected";
+	const entries: string[] = [];
+	const scopes: Array<[string, Binding[] | undefined]> = [
+		["p", runtime.loaded?.projectConfig.config?.bindings],
+		["g", runtime.loaded?.globalConfig.config?.bindings],
+	];
+	for (const [scope, bindings] of scopes) {
+		for (const binding of bindings ?? []) {
+			if (binding.profile !== formatRef(ref)) {
+				continue;
+			}
+			const rules = binding.match
+				.map((rule) => `${rule.provider ?? "*"}/${rule.model ?? "*"}`)
+				.join(",");
+			entries.push(`${scope}:${rules}(p${binding.priority ?? 0})`);
+		}
+	}
+	const existing =
+		entries.length > 0 ? `bindings ${entries.join(" ")}` : "no bindings yet";
+	return `${current} · ${existing}`;
+}
+
 async function handleBind(
 	runtime: Runtime,
 	ctx: ExtensionCommandContext,
@@ -692,31 +783,27 @@ async function handleBind(
 			);
 			return;
 		}
-		const models = ctx.modelRegistry.getAvailable();
-		if (models.length === 0) {
+		if (ctx.modelRegistry.getAvailable().length === 0) {
 			notify(ctx, "No models are available to bind.", "error");
 			return;
 		}
-		const labels = models.map(
-			(candidate) => `${candidate.provider}/${candidate.id}`,
-		);
-		const choice = await ctx.ui.select("Bind this profile to a model", labels);
-		if (choice === undefined) {
+		const target = await chooseBindingTarget(runtime, ctx, ref);
+		if (!target) {
+			notify(ctx, "Cancelled. No binding was written.", "info");
 			return;
 		}
-		const index = labels.indexOf(choice);
-		const chosen = models[index];
-		if (!chosen) {
-			return;
-		}
-		provider = String(chosen.provider);
-		model = String(chosen.id);
+		provider = target.provider;
+		model = target.model;
 	}
 
 	const priority = flagNumber(args.flags, "priority") ?? 0;
+	const wildcard = (value: string): string => (value === "*" ? "any" : value);
 	const bindingId =
 		flagString(args.flags, "id") ??
-		`${ref.id}-${provider}-${model}`.replace(/[^A-Za-z0-9._-]/g, "-");
+		`${ref.id}-${wildcard(provider)}-${wildcard(model)}`.replace(
+			/[^A-Za-z0-9._-]/g,
+			"-",
+		);
 	if (!isSafeId(bindingId)) {
 		notify(ctx, `Binding id "${bindingId}" is not valid; pass --id.`, "error");
 		return;

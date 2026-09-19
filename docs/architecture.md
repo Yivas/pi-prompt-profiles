@@ -154,6 +154,17 @@ development machine it measured a mean of about 0.009 ms per resolution; this is
 one machine's measured value, not a guarantee. Resolution is a pure function of
 the model and the loaded state.
 
+## Interactive pickers
+
+`src/core/picker.ts` holds the pure list logic: provider names, the models of one
+provider, filtering and the visible window. `src/adapter/picker.ts` turns it into
+`SearchList`, a component shown with `ctx.ui.custom` that filters as the user
+types and renders at most ten rows. Pi's own extension selector renders every
+option and has no filter, so handing it a full model catalog pushed the dialog
+off the screen. Outside the TUI, `selectItem` falls back to `ctx.ui.select` with
+ten-item pages. `/sp bind` uses it twice: provider, then model, with `*` options
+for `provider/*` and `*/*`.
+
 ## Paths, writes and errors
 
 Paths are validated against the authorized roots and rewritten through the

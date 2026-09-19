@@ -369,7 +369,8 @@ describe("extension integration (real runner, simulated transport)", () => {
 			selectAnswers: [
 				"Bind a profile to a model",
 				"global:base",
-				"deepseek/deepseek-chat",
+				"deepseek",
+				"deepseek-chat",
 			],
 		});
 		const command = harness.runner.getCommand("sp");
@@ -385,5 +386,86 @@ describe("extension integration (real runner, simulated transport)", () => {
 			provider: "deepseek",
 			model: "deepseek-chat",
 		});
+	});
+
+	it("binds to any provider from the interactive picker", async () => {
+		const harness = await setup({
+			models: [{ provider: "deepseek", id: "deepseek-chat" }],
+			selectAnswers: [
+				"Bind a profile to a model",
+				"global:base",
+				"(any provider)",
+			],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(config.bindings?.[0]?.match?.[0]).toEqual({
+			provider: "*",
+			model: "*",
+		});
+	});
+
+	it("binds to every model of a provider from the interactive picker", async () => {
+		const harness = await setup({
+			models: [
+				{ provider: "deepseek", id: "deepseek-chat" },
+				{ provider: "deepseek", id: "deepseek-reasoner" },
+			],
+			selectAnswers: [
+				"Bind a profile to a model",
+				"global:base",
+				"deepseek",
+				"(any model of deepseek)",
+			],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(config.bindings?.[0]?.match?.[0]).toEqual({
+			provider: "deepseek",
+			model: "*",
+		});
+	});
+
+	it("pages a long model list and shows the binding context", async () => {
+		const models = Array.from({ length: 12 }, (_value, index) => ({
+			provider: "deepseek",
+			id: `model-${String(index + 1).padStart(2, "0")}`,
+		}));
+		const harness = await setup({
+			models,
+			selectAnswers: [
+				"Bind a profile to a model",
+				"global:base",
+				"deepseek",
+				"More…",
+				"model-11",
+			],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(config.bindings?.[0]?.match?.[0]).toEqual({
+			provider: "deepseek",
+			model: "model-11",
+		});
+		const modelOptions = harness.selectCalls.at(-1) ?? [];
+		expect(modelOptions.length).toBeLessThanOrEqual(11);
 	});
 });

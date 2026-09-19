@@ -7,6 +7,21 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+### Added
+
+- The interactive bind menu can target every model of a provider (`provider/*`)
+  or any model of any provider (`*/*`).
+
+### Changed
+
+- Profile and model pickers use a searchable list capped at ten rows. Pi's
+  extension selector renders every option, so the model catalog pushed the
+  dialog off the screen.
+- Interactive `/sp bind` asks for a provider and then a model, and shows the
+  active model and the profile's existing bindings.
+- Generated binding ids use `any` for a wildcard segment (`base-deepseek-any`,
+  `base-any-any`).
+
 ## 0.3.1 - 2026-09-18
 
 ### Changed
