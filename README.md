@@ -6,7 +6,7 @@ written in Markdown and switched without restarting Pi.
 [![npm version](https://img.shields.io/npm/v/pi-prompt-profiles.svg)](https://www.npmjs.com/package/pi-prompt-profiles)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Version `0.4.1`, verified against Pi `0.85.1`.
+Version `0.5.0`, verified against Pi `0.85.1`.
 
 [Website](https://yivas.github.io/pi-prompt-profiles/) · [Install](#install) · [Command reference](https://yivas.github.io/pi-prompt-profiles/reference/commands/) · [Releases](https://github.com/Yivas/pi-prompt-profiles/releases) · [Contributing](https://github.com/Yivas/pi-prompt-profiles/blob/main/CONTRIBUTING.md)
 
@@ -25,7 +25,7 @@ family. It does not choose the model, change the provider, or route execution.
 
 ## Status
 
-- Version `0.4.1`. First public release `0.1.0`.
+- Version `0.5.0`. First public release `0.1.0`.
 - Published on npm as [`pi-prompt-profiles`](https://www.npmjs.com/package/pi-prompt-profiles).
 - Verified against `@earendil-works/pi-coding-agent` **0.85.1** only. See
   [docs/compatibility.md](docs/compatibility.md) for the exact contracts and

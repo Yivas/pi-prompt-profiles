@@ -7,6 +7,8 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+## 0.5.0 - 2026-09-18
+
 ### Added
 
 - The `subagents` config key (`off`, `bindings`, `inherit`) controls whether the
