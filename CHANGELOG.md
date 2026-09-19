@@ -7,6 +7,8 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+## 0.4.0 - 2026-09-18
+
 ### Added
 
 - The interactive bind menu can target every model of a provider (`provider/*`)
