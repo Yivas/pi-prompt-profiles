@@ -3,7 +3,11 @@ import type {
 	Theme,
 } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
-import { displayWidth, SearchList } from "../../src/adapter/picker.js";
+import {
+	displayWidth,
+	SearchList,
+	visibleRows,
+} from "../../src/adapter/picker.js";
 import type { PickerItem } from "../../src/core/picker.js";
 
 const theme = {
@@ -33,7 +37,9 @@ function items(count: number): PickerItem[] {
 }
 
 function build(
-	options: { items: PickerItem[]; subtitle?: string } = { items: items(15) },
+	options: { items: PickerItem[]; subtitle?: string; maxVisible?: number } = {
+		items: items(15),
+	},
 ) {
 	let result: string | undefined | symbol = Symbol("pending");
 	const list = new SearchList(
@@ -45,6 +51,7 @@ function build(
 		(value) => {
 			result = value;
 		},
+		options.maxVisible,
 	);
 	return { list, selected: () => result };
 }
@@ -137,6 +144,51 @@ describe("SearchList", () => {
 	it("counts wide characters and tabs conservatively", () => {
 		expect(displayWidth("模型")).toBe(4);
 		expect(displayWidth("a\tb")).toBe(5);
+	});
+
+	it("sizes the list to the terminal height", () => {
+		expect(visibleRows(24)).toBe(10);
+		expect(visibleRows(15)).toBe(7);
+		expect(visibleRows(11)).toBe(3);
+		expect(visibleRows(10)).toBe(2);
+		expect(visibleRows(9)).toBe(1);
+		expect(visibleRows(0)).toBe(3);
+	});
+
+	it("never renders more lines than the terminal has", () => {
+		for (let rows = 8; rows <= 40; rows += 1) {
+			const { list } = build({
+				subtitle: "context",
+				items: items(40),
+				maxVisible: visibleRows(rows),
+			});
+			expect(list.render(80).length).toBeLessThanOrEqual(rows);
+		}
+	});
+
+	it("keeps every rendered element on one line", () => {
+		const { list } = build({
+			subtitle: "line one\nline two",
+			items: [{ value: "1", label: "first\nsecond" }],
+		});
+		for (const line of list.render(80)) {
+			expect(line).not.toContain("\n");
+		}
+	});
+
+	it("pages by the visible rows", () => {
+		const { list, selected } = build({ items: items(15), maxVisible: 3 });
+		list.handleInput("\x1b[6~");
+		list.handleInput("\r");
+		expect(selected()).toBe("value-3");
+	});
+
+	it("shows only the rows that fit", () => {
+		const { list } = build({ items: items(15), maxVisible: 3 });
+		expect(rows(list)).toHaveLength(3);
+		expect(list.render(80).some((line) => line.includes("1-3 of 15"))).toBe(
+			true,
+		);
 	});
 
 	it("fits the empty state and the search prefix in narrow terminals", () => {

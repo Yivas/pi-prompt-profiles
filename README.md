@@ -111,8 +111,8 @@ The full command and flag reference lives in the
 [wiki](https://yivas.github.io/pi-prompt-profiles/reference/commands/). `/sp use`
 and `/sp auto` change only this session; they do not modify `config.json`.
 
-Profile and model pickers filter as you type and keep at most ten rows visible,
-so a large model catalog never pushes the dialog off the screen.
+Profile and model pickers filter as you type and keep the list within the
+screen, so a large model catalog never pushes the dialog off the screen.
 
 ## Flags
 

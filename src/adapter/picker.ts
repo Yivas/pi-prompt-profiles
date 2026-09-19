@@ -8,6 +8,21 @@ import { filterItems, type PickerItem, visibleWindow } from "../core/picker.js";
 const MAX_VISIBLE = 10;
 const HINT = "↑↓ navigate · enter select · esc cancel";
 
+/** Rows reserved for the title, the search line, the hint and the scroll counter. */
+const CHROME_ROWS = 8;
+
+/**
+ * How many list rows fit in the terminal. Pi renders the component inline, so a
+ * list taller than the screen would scroll the dialog out of view. Below eight
+ * rows the title, the search line and the hint no longer fit even with one row.
+ */
+export function visibleRows(rows: number): number {
+	if (!Number.isFinite(rows) || rows <= 0) {
+		return 3;
+	}
+	return Math.max(1, Math.min(MAX_VISIBLE, Math.floor(rows) - CHROME_ROWS));
+}
+
 export interface PickerRequest {
 	title: string;
 	subtitle?: string;
@@ -42,7 +57,12 @@ function truncate(text: string, width: number): string {
 		if (used + size > width) {
 			break;
 		}
-		result += character;
+		const code = character.codePointAt(0) ?? 0;
+		// A rendered element is one line: control characters that would break
+		// that, or inject terminal escapes, become spaces.
+		const safe =
+			character === "\t" || (code >= 0x20 && code !== 0x7f) ? character : " ";
+		result += safe;
 		used += size;
 	}
 	return result;
@@ -66,6 +86,7 @@ export class SearchList {
 		private readonly theme: Theme,
 		private readonly keybindings: KeybindingsManager,
 		private readonly done: (value: string | undefined) => void,
+		private readonly maxVisible: number = MAX_VISIBLE,
 	) {}
 
 	invalidate(): void {}
@@ -96,7 +117,7 @@ export class SearchList {
 			const { start, end } = visibleWindow(
 				filtered.length,
 				this.selected,
-				MAX_VISIBLE,
+				this.maxVisible,
 			);
 			for (let index = start; index < end; index += 1) {
 				const item = filtered[index];
@@ -110,7 +131,7 @@ export class SearchList {
 				);
 				lines.push(this.theme.fg(isSelected ? "accent" : "text", line));
 			}
-			if (filtered.length > MAX_VISIBLE) {
+			if (filtered.length > this.maxVisible) {
 				lines.push(
 					this.theme.fg(
 						"muted",
@@ -134,11 +155,11 @@ export class SearchList {
 			return;
 		}
 		if (this.keybindings.matches(data, "tui.select.pageUp")) {
-			this.move(-MAX_VISIBLE);
+			this.move(-this.maxVisible);
 			return;
 		}
 		if (this.keybindings.matches(data, "tui.select.pageDown")) {
-			this.move(MAX_VISIBLE);
+			this.move(this.maxVisible);
 			return;
 		}
 		if (this.keybindings.matches(data, "tui.select.confirm") || data === "\n") {
@@ -183,8 +204,16 @@ export async function selectItem(
 	if (ctx.mode === "tui") {
 		const { title, subtitle, items } = request;
 		return ctx.ui.custom<string | undefined>(
-			(_tui, theme, keybindings, done) =>
-				new SearchList(title, subtitle, items, theme, keybindings, done),
+			(tui, theme, keybindings, done) =>
+				new SearchList(
+					title,
+					subtitle,
+					items,
+					theme,
+					keybindings,
+					done,
+					visibleRows(tui.terminal.rows),
+				),
 		);
 	}
 	return selectPaged(ctx, request);

@@ -323,7 +323,10 @@ async function interactiveMenu(
 		"Reload from disk",
 		"Turn the manager off for this session",
 	];
-	const choice = await ctx.ui.select("System prompt profiles", actions);
+	const choice = await selectItem(ctx, {
+		title: "System prompt profiles",
+		items: actions.map((action) => ({ value: action, label: action })),
+	});
 	if (choice === undefined) {
 		return;
 	}

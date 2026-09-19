@@ -159,11 +159,13 @@ the model and the loaded state.
 `src/core/picker.ts` holds the pure list logic: provider names, the models of one
 provider, filtering and the visible window. `src/adapter/picker.ts` turns it into
 `SearchList`, a component shown with `ctx.ui.custom` that filters as the user
-types and renders at most ten rows. Pi's own extension selector renders every
-option and has no filter, so handing it a full model catalog pushed the dialog
-off the screen. Outside the TUI, `selectItem` falls back to `ctx.ui.select` with
-ten-item pages. `/sp bind` uses it twice: provider, then model, with `*` options
-for `provider/*` and `*/*`.
+types and renders at most ten rows, sized down to the terminal height. Pi's own
+extension selector renders every option and has no filter, so handing it a full
+model catalog, or the nine action labels, pushed the dialog off the screen.
+Outside the TUI, `selectItem` falls back to `ctx.ui.select` with ten-item pages.
+The action menu, the profile pickers and `/sp bind` all go through it; the bind
+flow asks for a provider and then a model, with `*` options for `provider/*` and
+`*/*`.
 
 ## Paths, writes and errors
 
