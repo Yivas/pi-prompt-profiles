@@ -13,6 +13,8 @@ Running `/sp` with no arguments opens a menu:
 - Show status
 - Preview the active profile
 - Reload from disk
+- Show configuration
+- Change a setting
 - Turn the manager off for this session
 
 ## Subcommands
@@ -33,6 +35,9 @@ Running `/sp` with no arguments opens a menu:
 | `/sp new <id> [--scope global\|project]` | Create a profile file. |
 | `/sp edit <profile>` | Edit a profile in Pi's editor. |
 | `/sp default <profile> [--scope global\|project]` | Set `defaultProfile`. |
+| `/sp config [--scope global\|project]` | Show a config file and its diagnostics. |
+| `/sp set <key> <value> [--scope global\|project]` | Validate and change a setting. |
+| `/sp unset <key> [--scope global\|project]` | Remove a setting. |
 
 A profile can be written as a bare id, `global:id` or `project:id`. A bare id is
 looked up in the trusted project first, then globally.
@@ -50,6 +55,23 @@ paged ten at a time.
 `/sp use` and `/sp auto` change only the current session. They do not modify
 `config.json`. Persistent operations take an explicit `--scope` or a scope you
 choose in the menu.
+
+## Settings
+
+`/sp set` and `/sp unset` change `config.json` without editing the file. Keys:
+
+| Key | Values | Scope |
+| --- | ------ | ----- |
+| `subagents` | `off`, `bindings`, `inherit` | global and project |
+| `inheritGlobalBindings` | `true`, `false` | `set`: project; `unset`: both |
+| `selection` (also `selection.mode`) | `auto`, `off` | global and project |
+| `defaultProfile` | — | `unset` only; `set` it with `/sp default` |
+
+`selection` is stored as an object, so `/sp set selection off` writes
+`{"selection":{"mode":"off"}}` and replaces any stored `profile`. `/sp unset`
+removes the key. The command applies the change, unless the session has its own
+selection (`/sp use`, `/sp auto` or `/sp off`), in which case it says so and the
+stored value applies to new sessions.
 
 ## Flags
 

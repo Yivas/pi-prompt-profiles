@@ -5,6 +5,7 @@ import type {
 	ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
 import { composeManagedBlock, stripManagedBlocks } from "../core/compose.js";
+import { loadConfigFile } from "../core/config.js";
 import { isSafeId } from "../core/ids.js";
 import {
 	atomicWriteFile,
@@ -19,6 +20,17 @@ import {
 	providerNames,
 } from "../core/picker.js";
 import { formatRef, parseRef } from "../core/refs.js";
+import { isProjectActive } from "../core/resolve.js";
+import {
+	applySetting,
+	effectiveSetting,
+	parseSetting,
+	type SettingKey,
+	settingKeys,
+	settingScopeError,
+	settingSpec,
+	unsetSetting,
+} from "../core/settings.js";
 import type { Binding, Diagnostic, ProfileRef, Scope } from "../core/types.js";
 import {
 	readRawConfig,
@@ -96,9 +108,12 @@ interface ScopeFlag {
 }
 
 function parseScope(flags: Record<string, string | boolean>): ScopeFlag {
-	const value = flagString(flags, "scope");
+	const value = flags.scope;
 	if (value === undefined) {
 		return {};
+	}
+	if (value === true || value === false) {
+		return { invalid: "(missing value)" };
 	}
 	if (value === "global" || value === "project") {
 		return { scope: value };
@@ -155,8 +170,8 @@ function editConfig(
 	runtime: Runtime,
 	ctx: ExtensionCommandContext,
 	scope: Scope,
-	mutate: (config: RawConfig) => void,
-): void {
+	mutate: (config: RawConfig) => boolean,
+): boolean {
 	if (scope === "project" && !ctx.isProjectTrusted()) {
 		throw new Error(
 			"This project is not trusted, so its config cannot be modified.",
@@ -164,8 +179,16 @@ function editConfig(
 	}
 	const filePath = configPath(configRootFor(runtime, ctx, scope));
 	const snapshot = readRawConfig(filePath);
-	mutate(snapshot.config);
+	if (snapshot.config.version !== 1) {
+		throw new Error(
+			`${filePath}: unsupported version ${JSON.stringify(snapshot.config.version)}; expected 1.`,
+		);
+	}
+	if (mutate(snapshot.config) === false) {
+		return false;
+	}
 	writeRawConfigIfUnchanged(filePath, snapshot, snapshot.config);
+	return true;
 }
 
 function listProfiles(runtime: Runtime, scope: Scope | undefined): string[] {
@@ -304,6 +327,66 @@ async function pickProfileRef(
 	return parseRef(choice);
 }
 
+async function chooseScopeInteractive(
+	ctx: ExtensionCommandContext,
+): Promise<Scope | undefined> {
+	const items: PickerItem[] = [];
+	if (ctx.isProjectTrusted()) {
+		items.push({ value: "project", label: "Project (this repository)" });
+	}
+	items.push({ value: "global", label: "Global (all projects)" });
+	const choice = await selectItem(ctx, {
+		title: "Which configuration?",
+		items,
+	});
+	return choice === "global" || choice === "project" ? choice : undefined;
+}
+
+async function changeSettingInteractive(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+): Promise<void> {
+	const scope = await chooseScopeInteractive(ctx);
+	if (!scope) {
+		return;
+	}
+	const items: PickerItem[] = [];
+	for (const key of settingKeys()) {
+		const spec = settingSpec(key);
+		if (
+			!spec?.settable ||
+			(spec.setScope === "project" && scope !== "project")
+		) {
+			continue;
+		}
+		const effective = effectiveSettingFor(runtime, key);
+		items.push({
+			value: key,
+			label: `${key} — ${spec.description} (now: ${JSON.stringify(effective.value)} from ${effective.origin})`,
+		});
+	}
+	const key = await selectItem(ctx, {
+		title: `Setting in the ${scope} config`,
+		items,
+	});
+	if (!key) {
+		return;
+	}
+	const spec = settingSpec(key);
+	if (!spec) {
+		return;
+	}
+	const values = spec.values ?? ["true", "false"];
+	const value = await selectItem(ctx, {
+		title: `${spec.key} — ${scope} config`,
+		items: values.map((entry) => ({ value: entry, label: entry })),
+	});
+	if (value === undefined) {
+		return;
+	}
+	await setSetting(runtime, ctx, key, value, scope);
+}
+
 /**
  * One discoverable menu for the common actions, so a user does not have to
  * remember subcommands to create, choose or bind a profile.
@@ -321,6 +404,8 @@ async function interactiveMenu(
 		"Show status",
 		"Preview the active profile",
 		"Reload from disk",
+		"Show configuration",
+		"Change a setting",
 		"Turn the manager off for this session",
 	];
 	const choice = await selectItem(ctx, {
@@ -432,6 +517,16 @@ async function interactiveMenu(
 			break;
 		case "Reload from disk":
 			await handleReload(runtime, ctx);
+			break;
+		case "Show configuration": {
+			const scope = await chooseScopeInteractive(ctx);
+			if (scope) {
+				await handleConfig(runtime, ctx, { positional: [], flags: { scope } });
+			}
+			break;
+		}
+		case "Change a setting":
+			await changeSettingInteractive(runtime, ctx);
 			break;
 		case "Turn the manager off for this session":
 			runtime.setSessionSelection(ctx, { mode: "off" }, "session");
@@ -558,6 +653,7 @@ async function handleDefault(
 	try {
 		editConfig(runtime, ctx, scope, (config) => {
 			config.defaultProfile = value;
+			return true;
 		});
 		runtime.reload();
 		runtime.ensure(ctx);
@@ -565,6 +661,239 @@ async function handleDefault(
 	} catch (cause) {
 		notify(ctx, messageOf(cause), "error");
 	}
+}
+
+function effectiveSettingFor(runtime: Runtime, key: SettingKey) {
+	const loaded = runtime.loaded;
+	const projectActive = loaded ? isProjectActive(runtime.sources()) : false;
+	return effectiveSetting(
+		{
+			global: loaded?.globalConfig.config,
+			project: projectActive ? loaded?.projectConfig.config : undefined,
+			projectActive,
+		},
+		key,
+	);
+}
+
+/** Reloads and reports; a failed reload never hides a successful write. */
+function reloadAfterWrite(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+	key: SettingKey,
+): void {
+	try {
+		runtime.reload();
+		runtime.ensure(ctx);
+		if (!runtime.hasSessionSelection()) {
+			runtime.applyConfigSelection();
+		}
+		runtime.updateStatus(ctx);
+	} catch (cause) {
+		notify(
+			ctx,
+			`Written, but the reload failed: ${messageOf(cause)}. Run /sp reload.`,
+			"error",
+		);
+		return;
+	}
+	if (key === "selection" && runtime.hasSessionSelection()) {
+		notify(
+			ctx,
+			"This session keeps its own selection; the stored value applies to new sessions.",
+			"info",
+		);
+	}
+	if (key === "subagents") {
+		notify(ctx, "Subagents that start from now use the new policy.", "info");
+	}
+}
+
+async function setSetting(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+	rawKey: string,
+	rawValue: string,
+	scope: Scope,
+): Promise<void> {
+	const parsed = parseSetting(rawKey, rawValue);
+	if (!parsed.ok) {
+		notify(ctx, parsed.message, "error");
+		return;
+	}
+	const scopeError = settingScopeError(parsed.setting.spec, scope);
+	if (scopeError) {
+		notify(ctx, scopeError, "error");
+		return;
+	}
+	let droppedManual = false;
+	try {
+		editConfig(runtime, ctx, scope, (config) => {
+			const selection = config.selection;
+			if (
+				parsed.setting.spec.key === "selection" &&
+				typeof selection === "object" &&
+				selection !== null &&
+				(selection as { mode?: unknown }).mode === "manual"
+			) {
+				droppedManual = true;
+			}
+			applySetting(config, parsed.setting);
+			return true;
+		});
+	} catch (cause) {
+		notify(ctx, messageOf(cause), "error");
+		return;
+	}
+	const filePath = configPath(configRootFor(runtime, ctx, scope));
+	const check = loadConfigFile(filePath, scope);
+	const errors = check.diagnostics.filter((entry) => entry.level === "error");
+	if (errors.length > 0) {
+		notify(
+			ctx,
+			`Written, but the config still has errors (they may predate this change):\n${formatDiagnostics(errors)}\nRun /sp reload.`,
+			"error",
+		);
+		return;
+	}
+	notify(
+		ctx,
+		`${parsed.setting.spec.key} set to ${JSON.stringify(parsed.setting.value)} in the ${scope} config.`,
+	);
+	if (droppedManual) {
+		notify(ctx, "The previous selection.profile was dropped.", "warning");
+	}
+	reloadAfterWrite(runtime, ctx, parsed.setting.spec.key);
+}
+
+async function handleConfig(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+	args: ParsedArgs,
+): Promise<void> {
+	const { scope: scopeFlag, invalid } = parseScope(args.flags);
+	if (invalid !== undefined) {
+		notify(
+			ctx,
+			`Invalid --scope "${invalid}". Use global or project.`,
+			"error",
+		);
+		return;
+	}
+	const scope: Scope = scopeFlag ?? "global";
+	if (scope === "project" && !ctx.isProjectTrusted()) {
+		notify(
+			ctx,
+			"The project is not trusted, so its config is not read.",
+			"warning",
+		);
+		return;
+	}
+	const filePath = configPath(configRootFor(runtime, ctx, scope));
+	try {
+		const snapshot = readRawConfig(filePath);
+		const loaded = loadConfigFile(filePath, scope);
+		const lines = [
+			snapshot.exists
+				? `${scope} config (${filePath}):`
+				: `${scope} config (no file at ${filePath}; defaults apply):`,
+			JSON.stringify(snapshot.config, null, 2),
+		];
+		for (const key of settingKeys()) {
+			const effective = effectiveSettingFor(runtime, key);
+			lines.push(
+				`${key} = ${JSON.stringify(effective.value)} (from ${effective.origin})`,
+			);
+		}
+		if (loaded.diagnostics.length > 0) {
+			lines.push(formatDiagnostics(loaded.diagnostics));
+		}
+		notify(ctx, lines.join("\n"));
+	} catch (cause) {
+		notify(ctx, messageOf(cause), "error");
+	}
+}
+
+async function handleSet(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+	args: ParsedArgs,
+): Promise<void> {
+	const rawKey = args.positional[0];
+	const rawValue = args.positional[1];
+	if (!rawKey || rawValue === undefined || args.positional.length > 2) {
+		notify(
+			ctx,
+			"Usage: /sp set <setting> <value> [--scope global|project]",
+			"warning",
+		);
+		return;
+	}
+	const { scope: scopeFlag, invalid } = parseScope(args.flags);
+	if (invalid !== undefined) {
+		notify(
+			ctx,
+			`Invalid --scope "${invalid}". Use global or project.`,
+			"error",
+		);
+		return;
+	}
+	await setSetting(runtime, ctx, rawKey, rawValue, scopeFlag ?? "global");
+}
+
+async function handleUnset(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+	args: ParsedArgs,
+): Promise<void> {
+	const rawKey = args.positional[0];
+	if (!rawKey || args.positional.length > 1) {
+		notify(
+			ctx,
+			"Usage: /sp unset <setting> [--scope global|project]",
+			"warning",
+		);
+		return;
+	}
+	const { scope: scopeFlag, invalid } = parseScope(args.flags);
+	if (invalid !== undefined) {
+		notify(
+			ctx,
+			`Invalid --scope "${invalid}". Use global or project.`,
+			"error",
+		);
+		return;
+	}
+	const spec = settingSpec(rawKey);
+	if (!spec) {
+		notify(
+			ctx,
+			`Unknown setting "${rawKey.trim()}". Known: ${settingKeys().join(", ")}.`,
+			"error",
+		);
+		return;
+	}
+	const scope: Scope = scopeFlag ?? "global";
+	let failure: string | undefined;
+	try {
+		const wrote = editConfig(runtime, ctx, scope, (config) => {
+			const result = unsetSetting(config, rawKey);
+			if (!result.ok) {
+				failure = result.message;
+				return false;
+			}
+			return true;
+		});
+		if (!wrote) {
+			notify(ctx, failure ?? "Nothing was removed.", "warning");
+			return;
+		}
+	} catch (cause) {
+		notify(ctx, messageOf(cause), "error");
+		return;
+	}
+	notify(ctx, `${spec.key} removed from the ${scope} config.`);
+	reloadAfterWrite(runtime, ctx, spec.key);
 }
 
 async function handleNew(
@@ -831,6 +1160,7 @@ async function handleBind(
 					),
 			);
 			config.bindings = [...filtered, binding];
+			return true;
 		});
 		runtime.reload();
 		runtime.ensure(ctx);
@@ -872,7 +1202,7 @@ async function handleUnbind(
 		editConfig(runtime, ctx, scope, (config) => {
 			const current = config.bindings;
 			if (!Array.isArray(current)) {
-				return;
+				return false;
 			}
 			const before = current.length;
 			config.bindings = current.filter(
@@ -884,6 +1214,7 @@ async function handleUnbind(
 					),
 			);
 			removed = before - (config.bindings as unknown[]).length;
+			return removed > 0;
 		});
 		runtime.reload();
 		runtime.ensure(ctx);
@@ -967,7 +1298,7 @@ async function handleReload(
 export function registerCommands(pi: ExtensionAPI, runtime: Runtime): void {
 	pi.registerCommand(COMMAND_NAME, {
 		description:
-			"Manage system prompt profiles (list, use, auto, off, status, why, preview, bind, reload, validate, new, edit, default).",
+			"Manage system prompt profiles (list, use, auto, off, status, why, preview, bind, unbind, reload, validate, new, edit, default, config, set, unset).",
 		getArgumentCompletions(argumentPrefix: string) {
 			const subcommands = [
 				"list",
@@ -984,6 +1315,9 @@ export function registerCommands(pi: ExtensionAPI, runtime: Runtime): void {
 				"new",
 				"edit",
 				"default",
+				"config",
+				"set",
+				"unset",
 				"help",
 			];
 			const parts = argumentPrefix.split(/\s+/);
@@ -1024,7 +1358,7 @@ export function registerCommands(pi: ExtensionAPI, runtime: Runtime): void {
 						} else {
 							notify(
 								ctx,
-								"Usage: /sp <list|use|auto|off|status|why|preview|bind|unbind|reload|validate|new|edit|default>",
+								"Usage: /sp <list|use|auto|off|status|why|preview|bind|unbind|reload|validate|new|edit|default|config|set|unset>",
 							);
 						}
 						break;
@@ -1047,6 +1381,9 @@ export function registerCommands(pi: ExtensionAPI, runtime: Runtime): void {
 								"/sp new <id>            create a profile file",
 								"/sp edit <profile>      edit a profile",
 								"/sp default <profile>   set defaultProfile",
+								"/sp config [--scope ...] show a config file and its diagnostics",
+								"/sp set <key> <value>   change a setting",
+								"/sp unset <key>         remove a setting",
 							].join("\n"),
 						);
 						break;
@@ -1104,6 +1441,15 @@ export function registerCommands(pi: ExtensionAPI, runtime: Runtime): void {
 						break;
 					case "default":
 						await handleDefault(runtime, ctx, operands);
+						break;
+					case "config":
+						await handleConfig(runtime, ctx, operands);
+						break;
+					case "set":
+						await handleSet(runtime, ctx, operands);
+						break;
+					case "unset":
+						await handleUnset(runtime, ctx, operands);
 						break;
 					default:
 						notify(

@@ -73,5 +73,5 @@ Three different things are reported separately by `/sp status`:
 - the prompt composed in `before_agent_start`;
 - the payload observed read-only in `before_provider_request`.
 
-See [Compatibility](reference/compatibility/) for what the last one can and
+See [Compatibility](../compatibility/) for what the last one can and
 cannot prove.

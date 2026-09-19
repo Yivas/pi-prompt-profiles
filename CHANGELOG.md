@@ -7,6 +7,13 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+### Added
+
+- `/sp config` shows a config file and its diagnostics, and `/sp set` and
+  `/sp unset` change `subagents`, `inheritGlobalBindings` and `selection`
+  without editing the file. The interactive menu gained "Show configuration" and
+  "Change a setting".
+
 ## 0.5.0 - 2026-09-18
 
 ### Added

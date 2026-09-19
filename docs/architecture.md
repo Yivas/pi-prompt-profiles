@@ -167,6 +167,18 @@ The action menu, the profile pickers and `/sp bind` all go through it; the bind
 flow asks for a provider and then a model, with `*` options for `provider/*` and
 `*/*`.
 
+## Configuration commands
+
+`src/core/settings.ts` holds one registry of the editable scalar keys
+(`subagents`, `inheritGlobalBindings`, `selection`, and `defaultProfile` for
+removal only): the accepted values, the scopes where `set` is allowed and the
+parser. `/sp set` validates before writing, `editConfig` refuses a config whose
+version is not 1 and preserves unknown fields, and the written document is
+reloaded and revalidated. `effectiveSetting` reports the project, global or
+default value and where it came from; `/sp config` and the menu use it. After a
+write, the extension applies the config baseline only when the session has no
+selection of its own, so a session pin is never silently overridden.
+
 ## Subagents
 
 A child session resolves on its own. The `subagents` config key caps what it may

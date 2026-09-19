@@ -3,6 +3,10 @@ import { atomicWriteFile, readTextIfExists, stripBom } from "../core/paths.js";
 
 export type RawConfig = Record<string, unknown>;
 
+function messageOf(cause: unknown): string {
+	return cause instanceof Error ? cause.message : String(cause);
+}
+
 export interface ConfigSnapshot {
 	config: RawConfig;
 	exists: boolean;
@@ -14,7 +18,13 @@ export function readRawConfig(filePath: string): ConfigSnapshot {
 	if (text === undefined) {
 		return { config: { version: 1 }, exists: false, mtimeMs: undefined };
 	}
-	const parsed: unknown = JSON.parse(stripBom(text));
+	const parsed: unknown = (() => {
+		try {
+			return JSON.parse(stripBom(text));
+		} catch (cause) {
+			throw new Error(`${filePath}: invalid JSON (${messageOf(cause)}).`);
+		}
+	})();
 	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
 		throw new Error(`${filePath}: the root must be a JSON object`);
 	}
@@ -44,6 +54,10 @@ export function writeRawConfigIfUnchanged(
 				`${filePath} changed on disk since it was read; reload and try again.`,
 			);
 		}
+	} else if (fs.existsSync(filePath)) {
+		throw new Error(
+			`${filePath} appeared on disk since it was read; reload and try again.`,
+		);
 	}
 	atomicWriteFile(filePath, `${JSON.stringify(next, null, "\t")}\n`);
 }

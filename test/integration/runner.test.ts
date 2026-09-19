@@ -609,4 +609,267 @@ describe("extension integration (real runner, simulated transport)", () => {
 		);
 		expect(result?.systemPrompt ?? "").toContain("BASE PROFILE BODY");
 	});
+
+	it("changes a setting from the command line", async () => {
+		const harness = await setup();
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"set subagents off --scope global",
+			harness.runner.createCommandContext(),
+		);
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(config.subagents).toBe("off");
+	});
+
+	it("rejects an invalid value without writing", async () => {
+		const harness = await setup();
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"set subagents always",
+			harness.runner.createCommandContext(),
+		);
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(config.subagents).toBeUndefined();
+		expect(
+			harness.notices.some((notice) => notice.includes("must be one of")),
+		).toBe(true);
+	});
+
+	it("rejects inheritGlobalBindings in the global config", async () => {
+		const harness = await setup();
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"set inheritGlobalBindings false --scope global",
+			harness.runner.createCommandContext(),
+		);
+		expect(
+			harness.notices.some((notice) => notice.includes("--scope project")),
+		).toBe(true);
+	});
+
+	it("rejects --scope without a value", async () => {
+		const harness = await setup();
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"set subagents off --scope",
+			harness.runner.createCommandContext(),
+		);
+		expect(
+			harness.notices.some((notice) => notice.includes("Invalid --scope")),
+		).toBe(true);
+	});
+
+	it("applies a stored selection to the current session", async () => {
+		const harness = await setup();
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"set selection off --scope global",
+			harness.runner.createCommandContext(),
+		);
+		const result = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(result?.systemPrompt).toBeUndefined();
+	});
+
+	it("does not lie about a stored selection when a session pin is active", async () => {
+		const harness = await setup();
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("use review", harness.runner.createCommandContext());
+		await command?.handler(
+			"set selection off --scope global",
+			harness.runner.createCommandContext(),
+		);
+		expect(
+			harness.notices.some((notice) =>
+				notice.includes("keeps its own selection"),
+			),
+		).toBe(true);
+		const result = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(result?.systemPrompt ?? "").toContain("REVIEW PROFILE BODY");
+	});
+
+	it("removes a setting and refuses to write when it is absent", async () => {
+		const harness = await setup({ config: { version: 1, subagents: "off" } });
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"unset subagents --scope global",
+			harness.runner.createCommandContext(),
+		);
+		expect(JSON.parse(fs.readFileSync(file, "utf8")).subagents).toBeUndefined();
+		const before = fs.readFileSync(file, "utf8");
+		await command?.handler(
+			"unset subagents --scope global",
+			harness.runner.createCommandContext(),
+		);
+		expect(fs.readFileSync(file, "utf8")).toBe(before);
+		expect(
+			harness.notices.some((notice) => notice.includes("is not set")),
+		).toBe(true);
+	});
+
+	it("shows the configuration and the effective values", async () => {
+		const harness = await setup();
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"config --scope global",
+			harness.runner.createCommandContext(),
+		);
+		expect(
+			harness.notices.some(
+				(notice) =>
+					notice.includes('"version": 1') && notice.includes("subagents ="),
+			),
+		).toBe(true);
+	});
+
+	it("refuses to write the project config without trust", async () => {
+		const harness = await setup({ projectTrusted: false });
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"set subagents off --scope project",
+			harness.runner.createCommandContext(),
+		);
+		expect(
+			harness.notices.some((notice) => notice.includes("not trusted")),
+		).toBe(true);
+		expect(
+			fs.existsSync(
+				path.join(harness.cwd, ".pi", "system-prompts", "config.json"),
+			),
+		).toBe(false);
+	});
+
+	it("writes the project config when trusted", async () => {
+		const harness = await setup({ projectTrusted: true });
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"set subagents inherit --scope project",
+			harness.runner.createCommandContext(),
+		);
+		const projectConfig = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.cwd, ".pi", "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(projectConfig.subagents).toBe("inherit");
+	});
+
+	it("changes a setting from the interactive menu", async () => {
+		const harness = await setup({
+			selectAnswers: [
+				"Change a setting",
+				"Global (all projects)",
+				"subagents",
+				"off",
+			],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(config.subagents).toBe("off");
+	});
+
+	it("refuses to write a config whose version is not 1", async () => {
+		const harness = await setup({ config: { version: 99 } });
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		const before = fs.readFileSync(file, "utf8");
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"set subagents off --scope global",
+			harness.runner.createCommandContext(),
+		);
+		expect(fs.readFileSync(file, "utf8")).toBe(before);
+		expect(
+			harness.notices.some((notice) => notice.includes("unsupported version")),
+		).toBe(true);
+	});
+
+	it("removes defaultProfile", async () => {
+		const harness = await setup();
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"unset defaultProfile --scope global",
+			harness.runner.createCommandContext(),
+		);
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(config.defaultProfile).toBeUndefined();
+	});
+
+	it("removes selection without leaving an empty object", async () => {
+		const harness = await setup({
+			config: { version: 1, selection: { mode: "off" } },
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"unset selection --scope global",
+			harness.runner.createCommandContext(),
+		);
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect("selection" in config).toBe(false);
+	});
+
+	it("removes inheritGlobalBindings even from the global config", async () => {
+		const harness = await setup({
+			config: { version: 1, inheritGlobalBindings: false },
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"unset inheritGlobalBindings --scope global",
+			harness.runner.createCommandContext(),
+		);
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect("inheritGlobalBindings" in config).toBe(false);
+	});
+
+	it("shows the configuration from the interactive menu", async () => {
+		const harness = await setup({
+			selectAnswers: ["Show configuration", "Global (all projects)"],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		expect(
+			harness.notices.some((notice) => notice.includes('"version": 1')),
+		).toBe(true);
+	});
 });

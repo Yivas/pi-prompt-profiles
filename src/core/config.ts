@@ -2,15 +2,17 @@ import { error, warn } from "./diagnostics.js";
 import { isSafeId } from "./ids.js";
 import { readTextIfExists, stripBom } from "./paths.js";
 import { resolveRef } from "./refs.js";
-import type {
-	Binding,
-	ConfigV1,
-	Diagnostic,
-	MatchRule,
-	ProfileMeta,
-	Scope,
-	SelectionConfig,
-	SourceConfig,
+import {
+	SELECTION_MODES,
+	SUBAGENT_POLICIES,
+	type Binding,
+	type ConfigV1,
+	type Diagnostic,
+	type MatchRule,
+	type ProfileMeta,
+	type Scope,
+	type SelectionConfig,
+	type SourceConfig,
 } from "./types.js";
 
 const CONFIG_VERSION = 1;
@@ -229,16 +231,14 @@ function validateConfig(
 
 	if (raw.subagents !== undefined) {
 		if (
-			raw.subagents === "off" ||
-			raw.subagents === "bindings" ||
-			raw.subagents === "inherit"
+			(SUBAGENT_POLICIES as readonly string[]).includes(raw.subagents as string)
 		) {
-			config.subagents = raw.subagents;
+			config.subagents = raw.subagents as (typeof SUBAGENT_POLICIES)[number];
 		} else {
 			diagnostics.push(
 				warn(
 					"config-subagents",
-					`${filePath}: subagents must be "off", "bindings" or "inherit" and was ignored.`,
+					`${filePath}: subagents must be ${SUBAGENT_POLICIES.map((value) => `"${value}"`).join(", ")} and was ignored.`,
 				),
 			);
 		}
@@ -293,7 +293,7 @@ function validateSelection(
 	diagnostics.push(
 		error(
 			"config-selection",
-			`${filePath}: unknown selection mode "${raw.mode}".`,
+			`${filePath}: unknown selection mode "${raw.mode}". Known: ${SELECTION_MODES.join(", ")}.`,
 		),
 	);
 	return undefined;

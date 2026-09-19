@@ -19,7 +19,11 @@ export type SelectionConfig =
 	| { mode: "off" };
 
 /** How a profile applies inside a subagent run. */
-export type SubagentPolicy = "off" | "bindings" | "inherit";
+export const SUBAGENT_POLICIES = ["off", "bindings", "inherit"] as const;
+export type SubagentPolicy = (typeof SUBAGENT_POLICIES)[number];
+
+/** Selection modes accepted in `config.json`. */
+export const SELECTION_MODES = ["auto", "off", "manual"] as const;
 
 /** Optional metadata for a profile, stored in `config.json`. */
 export interface ProfileMeta {

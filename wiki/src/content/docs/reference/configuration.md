@@ -92,6 +92,11 @@ A project config overrides the global one; an invalid value is ignored and the
 next scope applies, then the default. This only recognizes subagents that mark
 their process; other launchers are unaffected.
 
+`subagents`, `inheritGlobalBindings` and `selection` can be changed without
+editing the file, with `/sp set <key> <value>` and `/sp unset <key>`; see the
+[command reference](../commands/#settings). `defaultProfile` is set with
+`/sp default` and removed with `/sp unset defaultProfile`.
+
 ## Rules and validation
 
 - Profile ids are `[A-Za-z0-9][A-Za-z0-9._-]*`, with no `..`.
