@@ -7,6 +7,8 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+## 0.6.0 - 2026-09-19
+
 ### Added
 
 - `/sp config` shows a config file and its diagnostics, and `/sp set` and
