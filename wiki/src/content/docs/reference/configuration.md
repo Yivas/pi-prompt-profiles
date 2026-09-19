@@ -18,6 +18,7 @@ trusted.
 	"version": 1,
 	"selection": { "mode": "auto" },
 	"defaultProfile": "global:base",
+	"subagents": "bindings",
 	"profiles": {
 		"base": { "description": "General working agreements." },
 		"review": {
@@ -76,6 +77,20 @@ Omitted `provider` or `model` means `*`.
 ### `inheritGlobalBindings`
 
 Project-only. `false` makes the project ignore global bindings.
+
+### `subagents`
+
+How the profile applies inside a subagent run:
+
+- `bindings` (default): only an explicit binding that matches the child's model
+  applies. The `defaultProfile`, a session pin and a `selection` of `manual` are
+  ignored there; `selection: { "mode": "off" }` still disables the extension.
+- `inherit`: the normal resolution runs, including the `defaultProfile`.
+- `off`: the profile is not applied inside subagents.
+
+A project config overrides the global one; an invalid value is ignored and the
+next scope applies, then the default. This only recognizes subagents that mark
+their process; other launchers are unaffected.
 
 ## Rules and validation
 

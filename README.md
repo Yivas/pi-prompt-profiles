@@ -139,6 +139,10 @@ global one, then nothing (Pi keeps its native prompt). Explicit rules come befor
 defaults. Higher `priority` wins, then the most specific rule; `*` matches any
 characters including `/`.
 
+Inside a subagent, `subagents` decides what may apply: `bindings` (the default)
+only an explicit binding for the child's model, `inherit` the normal resolution
+and `off` nothing. Only processes that mark themselves as subagents are affected.
+
 The full resolution and composition rules are documented in the
 [wiki](https://yivas.github.io/pi-prompt-profiles/reference/resolution/).
 

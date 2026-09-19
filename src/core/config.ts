@@ -22,6 +22,7 @@ const KNOWN_KEYS = new Set([
 	"profiles",
 	"bindings",
 	"inheritGlobalBindings",
+	"subagents",
 ]);
 
 function messageOf(cause: unknown): string {
@@ -223,6 +224,23 @@ function validateConfig(
 			config.inheritGlobalBindings = raw.inheritGlobalBindings;
 		} else {
 			config.inheritGlobalBindings = raw.inheritGlobalBindings;
+		}
+	}
+
+	if (raw.subagents !== undefined) {
+		if (
+			raw.subagents === "off" ||
+			raw.subagents === "bindings" ||
+			raw.subagents === "inherit"
+		) {
+			config.subagents = raw.subagents;
+		} else {
+			diagnostics.push(
+				warn(
+					"config-subagents",
+					`${filePath}: subagents must be "off", "bindings" or "inherit" and was ignored.`,
+				),
+			);
 		}
 	}
 

@@ -2,6 +2,7 @@
 	"version": 1,
 	"selection": { "mode": "auto" },
 	"defaultProfile": "global:base",
+	"subagents": "bindings",
 	"profiles": {
 		"base": { "description": "General working agreements." },
 		"review": {

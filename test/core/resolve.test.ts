@@ -308,4 +308,42 @@ describe("resolveProfile", () => {
 			resolution.diagnostics.some((entry) => entry.code === "auto-no-model"),
 		).toBe(true);
 	});
+
+	it("skips the default profile when only bindings count", () => {
+		const sources = build({
+			globalConfig: { version: 1, defaultProfile: "global:base" },
+			globalProfiles: catalog("global", [{ id: "base", content: "BASE" }]),
+		});
+		expect(
+			resolveProfile({ mode: "auto" }, model, sources).profile?.ref.id,
+		).toBe("base");
+		expect(
+			resolveProfile({ mode: "auto" }, model, sources, { bindingsOnly: true })
+				.profile,
+		).toBeUndefined();
+	});
+
+	it("still applies an explicit binding when only bindings count", () => {
+		const sources = build({
+			globalConfig: {
+				version: 1,
+				defaultProfile: "global:base",
+				bindings: [
+					{
+						id: "ds",
+						profile: "global:deepseek",
+						match: [{ provider: "deepseek", model: "deepseek-*" }],
+					},
+				],
+			},
+			globalProfiles: catalog("global", [
+				{ id: "base", content: "BASE" },
+				{ id: "deepseek", content: "DS" },
+			]),
+		});
+		const resolution = resolveProfile({ mode: "auto" }, model, sources, {
+			bindingsOnly: true,
+		});
+		expect(resolution.profile?.ref.id).toBe("deepseek");
+	});
 });

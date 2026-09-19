@@ -7,6 +7,17 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+### Added
+
+- The `subagents` config key (`off`, `bindings`, `inherit`) controls whether the
+  profile applies inside a subagent.
+
+### Changed
+
+- A background subagent no longer receives the `defaultProfile`. With the default
+  `bindings` policy, only an explicit binding that matches the child's model
+  applies.
+
 ## 0.4.1 - 2026-09-18
 
 ### Added

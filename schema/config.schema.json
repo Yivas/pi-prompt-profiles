@@ -97,6 +97,11 @@
 		"inheritGlobalBindings": {
 			"type": "boolean",
 			"description": "Project-only. false makes the project ignore global bindings."
+		},
+		"subagents": {
+			"type": "string",
+			"description": "How the profile applies inside a subagent run. 'bindings' (default) uses only an explicit binding that matches the child's model, 'inherit' resolves normally (including defaultProfile) and 'off' applies nothing.",
+			"enum": ["off", "bindings", "inherit"]
 		}
 	},
 	"$defs": {

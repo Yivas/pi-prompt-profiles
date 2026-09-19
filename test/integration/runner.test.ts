@@ -21,6 +21,7 @@ const ENTRY = fileURLToPath(new URL("../../src/index.ts", import.meta.url));
 
 const roots: string[] = [];
 const savedAgentDir = process.env.PI_CODING_AGENT_DIR;
+const savedSubagentChild = process.env.PI_SUBAGENT_CHILD;
 
 afterEach(() => {
 	for (const root of roots) {
@@ -31,6 +32,11 @@ afterEach(() => {
 		delete process.env.PI_CODING_AGENT_DIR;
 	} else {
 		process.env.PI_CODING_AGENT_DIR = savedAgentDir;
+	}
+	if (savedSubagentChild === undefined) {
+		delete process.env.PI_SUBAGENT_CHILD;
+	} else {
+		process.env.PI_SUBAGENT_CHILD = savedSubagentChild;
 	}
 });
 
@@ -53,6 +59,8 @@ interface HarnessOptions {
 	inputAnswers?: string[];
 	editorAnswers?: string[];
 	models?: Array<{ provider: string; id: string }>;
+	config?: Record<string, unknown>;
+	subagent?: boolean;
 }
 
 const DEFAULT_MODEL = {
@@ -70,11 +78,13 @@ async function setup(options: HarnessOptions = {}): Promise<Harness> {
 	fs.mkdirSync(profilesDir, { recursive: true });
 	fs.writeFileSync(
 		path.join(agentDir, "system-prompts", "config.json"),
-		JSON.stringify({
-			version: 1,
-			selection: { mode: "auto" },
-			defaultProfile: "global:base",
-		}),
+		JSON.stringify(
+			options.config ?? {
+				version: 1,
+				selection: { mode: "auto" },
+				defaultProfile: "global:base",
+			},
+		),
 	);
 	fs.writeFileSync(path.join(profilesDir, "base.md"), "BASE PROFILE BODY");
 	fs.writeFileSync(path.join(profilesDir, "review.md"), "REVIEW PROFILE BODY");
@@ -188,6 +198,13 @@ async function setup(options: HarnessOptions = {}): Promise<Harness> {
 		},
 	} as unknown as ExtensionUIContext;
 	runner.setUIContext(ui, "print");
+
+	// Hermetic: the ambient environment must not decide whether this is a child.
+	if (options.subagent) {
+		process.env.PI_SUBAGENT_CHILD = "1";
+	} else {
+		delete process.env.PI_SUBAGENT_CHILD;
+	}
 
 	await runner.emit({ type: "session_start", reason: "startup" });
 
@@ -467,5 +484,129 @@ describe("extension integration (real runner, simulated transport)", () => {
 		});
 		const modelOptions = harness.selectCalls.at(-1) ?? [];
 		expect(modelOptions.length).toBeLessThanOrEqual(11);
+	});
+
+	it("keeps the default profile out of a subagent", async () => {
+		const harness = await setup({ subagent: true });
+		const result = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(result?.systemPrompt ?? "").not.toContain(MANAGED_BEGIN);
+	});
+
+	it("applies an explicit binding inside a subagent", async () => {
+		const harness = await setup({
+			subagent: true,
+			config: {
+				version: 1,
+				selection: { mode: "auto" },
+				defaultProfile: "global:base",
+				bindings: [
+					{
+						id: "ds",
+						profile: "global:review",
+						match: [{ provider: "deepseek", model: "deepseek-chat" }],
+					},
+				],
+			},
+		});
+		const result = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(result?.systemPrompt ?? "").toContain("REVIEW PROFILE BODY");
+	});
+
+	it("applies nothing inside a subagent when subagents is off", async () => {
+		const harness = await setup({
+			subagent: true,
+			config: {
+				version: 1,
+				selection: { mode: "auto" },
+				defaultProfile: "global:base",
+				subagents: "off",
+				bindings: [
+					{
+						id: "ds",
+						profile: "global:review",
+						match: [{ provider: "deepseek", model: "deepseek-chat" }],
+					},
+				],
+			},
+		});
+		const result = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(result?.systemPrompt ?? "").not.toContain(MANAGED_BEGIN);
+	});
+
+	it("inherits the normal resolution inside a subagent when asked", async () => {
+		const harness = await setup({
+			subagent: true,
+			config: {
+				version: 1,
+				selection: { mode: "auto" },
+				defaultProfile: "global:base",
+				subagents: "inherit",
+			},
+		});
+		const result = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(result?.systemPrompt ?? "").toContain("BASE PROFILE BODY");
+	});
+
+	it("keeps an explicit off inside a subagent in bindings mode", async () => {
+		const harness = await setup({
+			subagent: true,
+			config: {
+				version: 1,
+				selection: { mode: "off" },
+				defaultProfile: "global:base",
+				bindings: [
+					{
+						id: "ds",
+						profile: "global:review",
+						match: [{ provider: "deepseek", model: "deepseek-chat" }],
+					},
+				],
+			},
+		});
+		const result = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(result?.systemPrompt ?? "").not.toContain(MANAGED_BEGIN);
+	});
+
+	it("keeps the normal resolution outside a subagent whatever the policy", async () => {
+		const harness = await setup({
+			config: {
+				version: 1,
+				selection: { mode: "auto" },
+				defaultProfile: "global:base",
+				subagents: "off",
+			},
+		});
+		const result = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(result?.systemPrompt ?? "").toContain("BASE PROFILE BODY");
 	});
 });

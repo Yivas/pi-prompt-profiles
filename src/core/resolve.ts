@@ -24,6 +24,11 @@ export interface ResolveSources {
 	projectTrusted: boolean;
 }
 
+export interface ResolveOptions {
+	/** Skip `defaultProfile`: only an explicit binding can match. */
+	bindingsOnly?: boolean;
+}
+
 export function isProjectActive(sources: ResolveSources): boolean {
 	return sources.projectTrusted && sources.project?.config !== undefined;
 }
@@ -187,6 +192,7 @@ export function resolveProfile(
 	selection: Selection,
 	model: ModelIdentity | undefined,
 	sources: ResolveSources,
+	options: ResolveOptions = {},
 ): Resolution {
 	const diagnostics: Diagnostic[] = [];
 
@@ -253,34 +259,43 @@ export function resolveProfile(
 		}
 	}
 
-	const defaults: Array<{ value: string; scope: Scope }> = [];
-	if (project?.defaultProfile) {
-		defaults.push({ value: project.defaultProfile, scope: "project" });
-	}
-	if (global?.defaultProfile) {
-		defaults.push({ value: global.defaultProfile, scope: "global" });
-	}
-	for (const candidate of defaults) {
-		const ref = resolveRef(candidate.value, candidate.scope);
-		if (!ref) {
-			diagnostics.push(
-				error(
-					"default-profile",
-					`defaultProfile "${candidate.value}" is not a valid reference.`,
-				),
-			);
-			continue;
+	if (!options.bindingsOnly) {
+		const defaults: Array<{ value: string; scope: Scope }> = [];
+		if (project?.defaultProfile) {
+			defaults.push({ value: project.defaultProfile, scope: "project" });
 		}
-		const profile = expand(ref, sources, diagnostics);
-		if (profile) {
-			return { mode: "auto", profile, ignored: selected.ignored, diagnostics };
+		if (global?.defaultProfile) {
+			defaults.push({ value: global.defaultProfile, scope: "global" });
+		}
+		for (const candidate of defaults) {
+			const ref = resolveRef(candidate.value, candidate.scope);
+			if (!ref) {
+				diagnostics.push(
+					error(
+						"default-profile",
+						`defaultProfile "${candidate.value}" is not a valid reference.`,
+					),
+				);
+				continue;
+			}
+			const profile = expand(ref, sources, diagnostics);
+			if (profile) {
+				return {
+					mode: "auto",
+					profile,
+					ignored: selected.ignored,
+					diagnostics,
+				};
+			}
 		}
 	}
 
 	diagnostics.push(
 		info(
 			"auto-none",
-			`No profile matched ${model.provider}/${model.id}; Pi keeps its native prompt.`,
+			options.bindingsOnly
+				? `No binding matched ${model.provider}/${model.id}; the default profile is not used inside subagents.`
+				: `No profile matched ${model.provider}/${model.id}; Pi keeps its native prompt.`,
 		),
 	);
 	return { mode: "auto", ignored: selected.ignored, diagnostics };

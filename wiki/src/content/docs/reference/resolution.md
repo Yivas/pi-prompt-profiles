@@ -56,6 +56,15 @@ primacy, and it still does not create a privileged message type at the API level
 Composition is idempotent: the extension removes its own leading block and
 prepends exactly one, so the prompt never accumulates duplicates.
 
+## Subagents
+
+A subagent is its own session, so it resolves from the config, not from the
+parent's pin. The `subagents` key decides what it may apply: `bindings` (the
+default) only an explicit binding for the child's model, `inherit` the normal
+resolution including `defaultProfile`, and `off` nothing. This only recognizes
+subagents that mark their process; a foreground child that does not load ambient
+extensions never sees the block at all.
+
 ## Observation
 
 Three different things are reported separately by `/sp status`:

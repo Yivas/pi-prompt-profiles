@@ -167,6 +167,14 @@ The action menu, the profile pickers and `/sp bind` all go through it; the bind
 flow asks for a provider and then a model, with `*` options for `provider/*` and
 `*/*`.
 
+## Subagents
+
+A child session resolves on its own. The `subagents` config key caps what it may
+apply: `bindings` (default) uses only an explicit binding that matches the
+child's model, `inherit` resolves normally and `off` applies nothing. The
+adapter recognizes a child through the `PI_SUBAGENT_CHILD` environment variable
+that `pi-subagents` sets; the core stays unaware of it.
+
 ## Paths, writes and errors
 
 Paths are validated against the authorized roots and rewritten through the

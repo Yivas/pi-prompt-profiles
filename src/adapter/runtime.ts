@@ -15,6 +15,7 @@ import type {
 	Resolution,
 	Scope,
 	Selection,
+	SubagentPolicy,
 } from "../core/types.js";
 import { identityOf, modelKey } from "./model.js";
 import {
@@ -41,6 +42,15 @@ export interface AppliedPrompt {
 
 export function messageOf(cause: unknown): string {
 	return cause instanceof Error ? cause.message : String(cause);
+}
+
+/**
+ * Best-effort detection of a subagent run. `pi-subagents` marks child processes
+ * with this variable; without it, an ambient background child loads the
+ * extension and would inherit whatever the config assigns to its model.
+ */
+export function isSubagentRun(): boolean {
+	return process.env.PI_SUBAGENT_CHILD === "1";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -233,19 +243,42 @@ export class Runtime {
 		this.resolved = undefined;
 	}
 
+	/** Project config wins over global; the default keeps subagents to bindings. */
+	private subagentPolicy(loaded: LoadedState): SubagentPolicy {
+		const project = isProjectActive(this.sources())
+			? loaded.projectConfig.config?.subagents
+			: undefined;
+		return project ?? loaded.globalConfig.config?.subagents ?? "bindings";
+	}
+
 	resolve(ctx: ExtensionContext): Resolution {
 		const loaded = this.ensure(ctx);
 		const key = modelKey(ctx.model);
 		if (this.resolved && this.resolved.key === key) {
 			return this.resolved.resolution;
 		}
-		const resolution = resolveCore(this.selection, identityOf(ctx.model), {
-			global: loaded.globalConfig,
-			project: loaded.projectConfig,
-			globalProfiles: loaded.globalProfiles,
-			projectProfiles: loaded.projectProfiles,
-			projectTrusted: loaded.projectTrusted,
-		});
+		const policy: SubagentPolicy = isSubagentRun()
+			? this.subagentPolicy(loaded)
+			: "inherit";
+		// An explicit `off` always wins, including inside a subagent.
+		const selection: Selection =
+			policy === "off" || this.selection.mode === "off"
+				? { mode: "off" }
+				: policy === "bindings"
+					? { mode: "auto" }
+					: this.selection;
+		const resolution = resolveCore(
+			selection,
+			identityOf(ctx.model),
+			{
+				global: loaded.globalConfig,
+				project: loaded.projectConfig,
+				globalProfiles: loaded.globalProfiles,
+				projectProfiles: loaded.projectProfiles,
+				projectTrusted: loaded.projectTrusted,
+			},
+			{ bindingsOnly: policy === "bindings" },
+		);
 		this.resolved = { key, resolution };
 		return resolution;
 	}

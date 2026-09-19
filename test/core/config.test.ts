@@ -134,4 +134,26 @@ describe("loadConfigFile", () => {
 			result.diagnostics.some((entry) => entry.code === "config-inherit"),
 		).toBe(true);
 	});
+
+	it("accepts every subagent policy value", () => {
+		for (const value of ["off", "bindings", "inherit"]) {
+			const result = loadConfigFile(
+				writeConfig(JSON.stringify({ version: 1, subagents: value })),
+				"global",
+			);
+			expect(result.config?.subagents).toBe(value);
+			expect(result.diagnostics).toHaveLength(0);
+		}
+	});
+
+	it("ignores an invalid subagent policy with a warning", () => {
+		const result = loadConfigFile(
+			writeConfig(JSON.stringify({ version: 1, subagents: "always" })),
+			"global",
+		);
+		expect(result.config?.subagents).toBeUndefined();
+		expect(
+			result.diagnostics.some((entry) => entry.code === "config-subagents"),
+		).toBe(true);
+	});
 });

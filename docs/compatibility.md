@@ -158,6 +158,18 @@ and `bold` to style it. `SearchList` renders one string per element and keeps
 every line within the width it is given, because Pi throws when a rendered line
 exceeds the terminal width.
 
+## Subagents
+
+`ctx` carries no "this is a subagent" flag. The adapter recognizes a child
+through the `PI_SUBAGENT_CHILD` environment variable that `pi-subagents` sets on
+child processes. That is a soft integration with one launcher, not a Pi
+contract: if the variable is absent, the subagent policy does not apply and the
+run behaves like a normal session. Foreground children of `pi-subagents` do not
+load ambient extensions at all, so this extension is not present in them unless
+it was added to the child explicitly. The variable is inherited by every
+descendant of the runner process, so a Pi started from that environment is also
+treated as a child.
+
 ## Known limits
 
 - There is no priority field on events. Handler order is load order. If a later

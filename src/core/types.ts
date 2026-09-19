@@ -18,6 +18,9 @@ export type SelectionConfig =
 	| { mode: "manual"; profile: string }
 	| { mode: "off" };
 
+/** How a profile applies inside a subagent run. */
+export type SubagentPolicy = "off" | "bindings" | "inherit";
+
 /** Optional metadata for a profile, stored in `config.json`. */
 export interface ProfileMeta {
 	/** Single optional parent profile. Bare ids resolve inside the same scope. */
@@ -49,6 +52,11 @@ export interface ConfigV1 {
 	bindings?: Binding[];
 	/** Project-only. `false` disables global bindings for this project. */
 	inheritGlobalBindings?: boolean;
+	/**
+	 * Applies in subagents. `bindings` only uses an explicit binding for the
+	 * child's model, `inherit` resolves normally and `off` applies nothing.
+	 */
+	subagents?: SubagentPolicy;
 }
 
 export interface LoadedProfile {
