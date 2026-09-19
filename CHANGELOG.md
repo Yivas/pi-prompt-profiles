@@ -7,13 +7,7 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
-### Fixed
-
-- The main `/sp` menu uses the same capped, searchable list as the other
-  pickers, so it no longer fills the screen.
-- The list scales to the terminal height instead of assuming ten rows fit.
-
-## 0.4.0 - 2026-09-18
+## 0.4.1 - 2026-09-18
 
 ### Added
 
