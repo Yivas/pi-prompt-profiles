@@ -20,8 +20,9 @@ No other version is claimed to work. The full audit, with file references, is in
 
 The extension also uses `registerCommand`, `registerFlag`/`getFlag`,
 `appendEntry`, `ctx.sessionManager.getBranch()`, `ctx.isProjectTrusted()`,
-`ctx.model`, `ctx.modelRegistry` and `ctx.ui`. It does not import internal paths
-or touch private properties.
+`ctx.model`, `ctx.modelRegistry`, `ctx.mode` and `ctx.ui` (`select`, `input`,
+`editor`, `custom`, `notify`, `setStatus`). It does not import internal paths or
+touch private properties.
 
 ## System prompt
 
@@ -44,6 +45,15 @@ documentation instructions.
   on the next run; the extension does not abort streaming to swap instructions.
 - A restored session reads the current file on disk, not the version that existed
   when the session was written.
+
+## Pickers
+
+Pi's extension selector (`ctx.ui.select`) renders every option it receives and
+has no filter or scroll, so a long list pushes the dialog off the screen. This
+extension only uses it for very short fixed lists. In `ctx.mode === "tui"` it
+shows a custom component through `ctx.ui.custom` that filters as you type and
+sizes its rows to the terminal; in other modes it pages `ctx.ui.select` ten
+options at a time.
 
 ## Errors
 

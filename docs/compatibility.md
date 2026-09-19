@@ -139,11 +139,24 @@ snapshot. No model version is hardcoded anywhere in this package.
 ## UI
 
 `ctx.ui` provides `select`, `confirm`, `input`, `editor`, `custom`, `notify`,
-`setStatus` and more. `ctx.hasUI` is false in non-interactive modes. Commands
-receive `ExtensionCommandContext`, which adds `getSystemPromptOptions()`,
+`setStatus` and more. `ctx.hasUI` is false in non-interactive modes, and
+`ctx.mode` is `"tui" | "rpc" | "json" | "print"`. Commands receive
+`ExtensionCommandContext`, which adds `getSystemPromptOptions()`,
 `waitForIdle()`, `reload()`, `newSession()`, `fork()`, `switchSession()` and
 `navigateTree()`. This extension registers one command (`sp`) and checks the
 existing command list before describing collisions.
+
+Pi's generic extension selector (`ExtensionSelectorComponent`,
+`dist/modes/interactive/components/extension-selector.js`) renders every option
+it is given and has no filter or scroll: a list longer than the terminal pushes
+the dialog off the screen. It is only safe for short fixed lists. This extension
+uses it for the two-option scope question and, outside the TUI, for ten-item
+pages. In `ctx.mode === "tui"` it shows a custom component through
+`ctx.ui.custom` (verified signature: `(tui, theme, keybindings, done) =>
+Component`), reading `tui.terminal.rows` to size the list and the theme's `fg`
+and `bold` to style it. `SearchList` renders one string per element and keeps
+every line within the width it is given, because Pi throws when a rendered line
+exceeds the terminal width.
 
 ## Known limits
 

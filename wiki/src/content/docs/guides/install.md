@@ -21,6 +21,14 @@ modified.
 
 ## Install it
 
+From npm:
+
+```bash
+pi install npm:pi-prompt-profiles
+```
+
+From a local checkout:
+
 ```bash
 pi install /path/to/pi-prompt-profiles
 ```
