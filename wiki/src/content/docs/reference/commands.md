@@ -8,8 +8,11 @@ Running `/sp` with no arguments opens a menu:
 - Choose a profile for this session
 - Create a new profile
 - Edit a profile
-- Bind a profile to a model
-- Remove a model binding
+- Manage model bindings
+  - Add a binding to a model
+  - List bindings
+  - Remove a binding
+  - Back to the main menu
 - Set the default profile
 - Show status
 - Preview the active profile
@@ -58,6 +61,11 @@ Outside the TUI the same choices appear in Pi's selector, paged ten at a time.
 `config.json`. Persistent operations take an explicit `--scope` or a scope you
 choose in the menu; `/sp unbind` without `--scope` is the exception and searches
 both configs, project first.
+
+The bindings submenu stays open after adding, listing or removing, so several
+bindings can be handled in one pass; Escape returns to the chat. "List bindings"
+shows every entry of both configs as `scope:id — profile ← rules (priority n)`,
+which is how you find the id of the binding to remove.
 
 ## Settings
 

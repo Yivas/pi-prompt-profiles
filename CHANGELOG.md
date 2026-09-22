@@ -7,6 +7,18 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+### Added
+
+- A "Manage model bindings" submenu in the guided menu groups adding, listing
+  and removing bindings, with a way back to the main menu. The list shows every
+  binding of both configs as `scope:id — profile ← rules`, with priority when it
+  is not the default.
+
+### Changed
+
+- "Bind a profile to a model" and "Remove a model binding" now live inside the
+  "Manage model bindings" submenu.
+
 ## 0.7.0 - 2026-09-22
 
 ### Added

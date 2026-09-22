@@ -384,7 +384,8 @@ describe("extension integration (real runner, simulated transport)", () => {
 		const harness = await setup({
 			models: [{ provider: "deepseek", id: "deepseek-chat" }],
 			selectAnswers: [
-				"Bind a profile to a model",
+				"Manage model bindings",
+				"Add a binding to a model",
 				"global:base",
 				"deepseek",
 				"deepseek-chat",
@@ -409,7 +410,8 @@ describe("extension integration (real runner, simulated transport)", () => {
 		const harness = await setup({
 			models: [{ provider: "deepseek", id: "deepseek-chat" }],
 			selectAnswers: [
-				"Bind a profile to a model",
+				"Manage model bindings",
+				"Add a binding to a model",
 				"global:base",
 				"(any provider)",
 				"(any model)",
@@ -436,7 +438,8 @@ describe("extension integration (real runner, simulated transport)", () => {
 				{ provider: "openrouter", id: "zeta" },
 			],
 			selectAnswers: [
-				"Bind a profile to a model",
+				"Manage model bindings",
+				"Add a binding to a model",
 				"global:base",
 				"(any provider)",
 				"zeta",
@@ -463,7 +466,8 @@ describe("extension integration (real runner, simulated transport)", () => {
 				{ provider: "deepseek", id: "deepseek-reasoner" },
 			],
 			selectAnswers: [
-				"Bind a profile to a model",
+				"Manage model bindings",
+				"Add a binding to a model",
 				"global:base",
 				"deepseek",
 				"(any model of deepseek)",
@@ -491,7 +495,8 @@ describe("extension integration (real runner, simulated transport)", () => {
 		const harness = await setup({
 			models,
 			selectAnswers: [
-				"Bind a profile to a model",
+				"Manage model bindings",
+				"Add a binding to a model",
 				"global:base",
 				"deepseek",
 				"More…",
@@ -528,7 +533,7 @@ describe("extension integration (real runner, simulated transport)", () => {
 					},
 				],
 			},
-			selectAnswers: ["Remove a model binding", "ds"],
+			selectAnswers: ["Manage model bindings", "Remove a binding", "ds"],
 		});
 		const command = harness.runner.getCommand("sp");
 		await command?.handler("", harness.runner.createCommandContext());
@@ -541,6 +546,78 @@ describe("extension integration (real runner, simulated transport)", () => {
 		expect(config.bindings ?? []).toEqual([]);
 		expect(
 			harness.notices.some((notice) => notice.includes('Removed binding "ds"')),
+		).toBe(true);
+	});
+
+	it("lists every binding of both configs from the bindings menu", async () => {
+		const harness = await setup({
+			projectTrusted: true,
+			config: {
+				version: 1,
+				selection: { mode: "auto" },
+				defaultProfile: "global:base",
+				bindings: [
+					{
+						id: "ds",
+						profile: "global:review",
+						match: [{ provider: "deepseek", model: "deepseek-chat" }],
+						priority: 3,
+					},
+				],
+			},
+			selectAnswers: ["Manage model bindings", "List bindings"],
+		});
+		const projectFile = path.join(
+			harness.cwd,
+			".pi",
+			"system-prompts",
+			"config.json",
+		);
+		fs.mkdirSync(path.dirname(projectFile), { recursive: true });
+		fs.writeFileSync(
+			projectFile,
+			JSON.stringify({
+				version: 1,
+				bindings: [
+					{
+						id: "local",
+						profile: "global:base",
+						match: [{ provider: "openrouter", model: "*" }],
+					},
+				],
+			}),
+		);
+		const command = harness.runner.getCommand("sp");
+		// The project config lands after setup's session_start, so the cached
+		// state must be refreshed before the menu can list it.
+		await command?.handler("reload", harness.runner.createCommandContext());
+		await command?.handler("", harness.runner.createCommandContext());
+		const notice = harness.notices.find((entry) =>
+			entry.includes("global:ds — global:review"),
+		);
+		expect(notice ?? "").toContain(
+			"project:local — global:base ← openrouter/*",
+		);
+		expect(notice ?? "").toContain(
+			"global:ds — global:review ← deepseek/deepseek-chat (priority 3)",
+		);
+		expect((notice ?? "").indexOf("project:local")).toBeLessThan(
+			(notice ?? "").indexOf("global:ds"),
+		);
+	});
+
+	it("returns to the main menu from the bindings menu", async () => {
+		const harness = await setup({
+			selectAnswers: [
+				"Manage model bindings",
+				"Back to the main menu",
+				"Show status",
+			],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		expect(
+			harness.notices.some((notice) => notice.includes("mode: auto")),
 		).toBe(true);
 	});
 
@@ -1076,7 +1153,6 @@ describe("extension integration (real runner, simulated transport)", () => {
 	it("changes a setting from the interactive menu", async () => {
 		const harness = await setup({
 			selectAnswers: [
-				"More…",
 				"Change a setting",
 				"Global (all projects)",
 				"subagents",

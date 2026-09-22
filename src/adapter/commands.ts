@@ -393,7 +393,7 @@ async function changeSettingInteractive(
 
 /**
  * One discoverable menu for the common actions, so a user does not have to
- * remember subcommands to create, choose or bind a profile.
+ * remember subcommands to create, choose, bind or unbind profiles.
  */
 async function interactiveMenu(
 	runtime: Runtime,
@@ -403,8 +403,7 @@ async function interactiveMenu(
 		"Choose a profile for this session",
 		"Create a new profile",
 		"Edit a profile",
-		"Bind a profile to a model",
-		"Remove a model binding",
+		"Manage model bindings",
 		"Set the default profile",
 		"Show status",
 		"Preview the active profile",
@@ -494,18 +493,8 @@ async function interactiveMenu(
 			}
 			break;
 		}
-		case "Bind a profile to a model": {
-			const ref = await pickProfileRef(runtime, ctx);
-			if (ref) {
-				await handleBind(runtime, ctx, {
-					positional: [formatRef(ref)],
-					flags: {},
-				});
-			}
-			break;
-		}
-		case "Remove a model binding":
-			await removeBindingInteractive(runtime, ctx);
+		case "Manage model bindings":
+			await bindingsMenu(runtime, ctx);
 			break;
 		case "Set the default profile": {
 			const ref = await pickProfileRef(runtime, ctx);
@@ -1090,9 +1079,7 @@ function bindingContext(
 			if (binding.profile !== formatRef(ref)) {
 				continue;
 			}
-			const rules = binding.match
-				.map((rule) => `${rule.provider ?? "*"}/${rule.model ?? "*"}`)
-				.join(",");
+			const rules = matchRules(binding);
 			entries.push(`${scope}:${rules}(p${binding.priority ?? 0})`);
 		}
 	}
@@ -1329,6 +1316,86 @@ async function handleUnbind(
 	);
 }
 
+/** One `provider/model` rule line, `*` on the side the rule omits. */
+function matchRules(binding: Binding): string {
+	return binding.match
+		.map((rule) => `${rule.provider ?? "*"}/${rule.model ?? "*"}`)
+		.join(",");
+}
+
+const EMPTY_BINDINGS =
+	'No bindings configured. Use "Add a binding to a model" to create one.';
+
+/** Every binding of both configs, one per line, project first. */
+function bindingList(runtime: Runtime): string[] {
+	const loaded = runtime.loaded;
+	if (!loaded) {
+		return [];
+	}
+	const lines: string[] = [];
+	const scopes: Array<[Scope, Binding[] | undefined]> = [
+		["project", loaded.projectConfig.config?.bindings],
+		["global", loaded.globalConfig.config?.bindings],
+	];
+	for (const [scope, bindings] of scopes) {
+		for (const binding of bindings ?? []) {
+			const priority =
+				binding.priority !== undefined && binding.priority !== 0
+					? ` (priority ${binding.priority})`
+					: "";
+			lines.push(
+				`${scope}:${binding.id} — ${binding.profile} ← ${matchRules(binding)}${priority}`,
+			);
+		}
+	}
+	return lines;
+}
+
+/**
+ * The bind/unbind hub of the menu: add, list and remove bindings in one place
+ * and a way back to the main menu, so neither subcommands nor ids need to be
+ * remembered.
+ */
+async function bindingsMenu(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+): Promise<void> {
+	for (;;) {
+		const choice = await selectItem(ctx, {
+			title: "Model bindings",
+			items: [
+				{ value: "add", label: "Add a binding to a model" },
+				{ value: "list", label: "List bindings" },
+				{ value: "remove", label: "Remove a binding" },
+				{ value: "back", label: "Back to the main menu" },
+			],
+		});
+		if (choice === undefined) {
+			return;
+		}
+		if (choice === "back") {
+			await interactiveMenu(runtime, ctx);
+			return;
+		}
+		if (choice === "list") {
+			const lines = bindingList(runtime);
+			notify(ctx, lines.length > 0 ? lines.join("\n") : EMPTY_BINDINGS);
+			continue;
+		}
+		if (choice === "remove") {
+			await removeBindingInteractive(runtime, ctx);
+			continue;
+		}
+		const ref = await pickProfileRef(runtime, ctx);
+		if (ref) {
+			await handleBind(runtime, ctx, {
+				positional: [formatRef(ref)],
+				flags: {},
+			});
+		}
+	}
+}
+
 async function removeBindingInteractive(
 	runtime: Runtime,
 	ctx: ExtensionCommandContext,
@@ -1342,16 +1409,14 @@ async function removeBindingInteractive(
 		entries.push({ scope: "global", binding });
 	}
 	if (entries.length === 0) {
-		notify(ctx, "No bindings to remove.");
+		notify(ctx, EMPTY_BINDINGS);
 		return;
 	}
 	const choice = await selectItem(ctx, {
-		title: "Remove a model binding",
+		title: "Remove a binding",
 		items: entries.map(({ scope, binding }) => ({
 			value: JSON.stringify([scope, binding.id]),
-			label: `${scope}:${binding.id} — ${binding.profile} ← ${binding.match
-				.map((rule) => `${rule.provider ?? "*"}/${rule.model ?? "*"}`)
-				.join(",")}`,
+			label: `${scope}:${binding.id} — ${binding.profile} ← ${matchRules(binding)}`,
 		})),
 	});
 	if (choice === undefined) {
