@@ -7,6 +7,8 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+## 0.7.0 - 2026-09-22
+
 ### Added
 
 - "Remove a model binding" in the guided menu, listing every binding of both
