@@ -7,6 +7,8 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+## 0.8.0 - 2026-09-22
+
 ### Added
 
 - A "Manage model bindings" submenu in the guided menu groups adding, listing
