@@ -100,9 +100,10 @@ Run `/sp` with no arguments for a guided menu. The everyday commands:
 
 | Command | Effect |
 | ------- | ------ |
-| `/sp` | Guided menu: choose, create, edit, bind, set default, status, preview, reload, show configuration, change a setting, off. |
+| `/sp` | Guided menu: choose, create, edit, bind, remove a binding, set default, status, preview, reload, show configuration, change a setting, off. |
 | `/sp use <profile>` | Pin a profile for this session. |
-| `/sp bind <profile>` | Add a model binding; the picker offers a provider and a model, including `(any provider)` and `(any model of ...)`. |
+| `/sp bind <profile>` | Add a model binding; the picker asks for a provider and then one of its models. `(any provider)` lists every model, and `(any model of ...)` binds a whole provider. |
+| `/sp unbind <binding-id>` | Remove a binding; searches both configs unless `--scope` is given. |
 | `/sp config` | Show a config file and its diagnostics. |
 | `/sp set <key> <value>` | Change `subagents`, `inheritGlobalBindings` or `selection` in the config. |
 | `/sp unset <key>` | Remove a setting, including `defaultProfile`. |

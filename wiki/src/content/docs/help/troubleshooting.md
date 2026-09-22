@@ -5,12 +5,17 @@ description: Common problems and how to diagnose them.
 
 ## The profile is not applied
 
-1. Run `/sp status`. If it shows `SP: auto (none)`, nothing matched the current
-   model.
+1. Run `/sp status`. If the mode is `manual` or `off`, that selection wins over
+   bindings; run `/sp auto`. If it shows `SP: auto (none)`, nothing matched the
+   current model.
 2. Run `/sp validate` to see configuration problems.
 3. Check that `selection` is not `off` and that `defaultProfile` points at an
    existing profile.
-4. Run `/sp reload` after editing files on disk.
+4. Match rules compare `provider` and `model` literally, with `*` as the only
+   wildcard. `/sp status` shows the active model: for `openrouter` serving
+   `anthropic/claude-x`, bind provider `openrouter` and model
+   `anthropic/claude-x`, not `openrouter/anthropic/claude-x`.
+5. Run `/sp reload` after editing files on disk.
 
 ## A profile is not listed
 

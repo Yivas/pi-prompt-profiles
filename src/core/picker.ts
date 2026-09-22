@@ -23,6 +23,14 @@ export function modelsOfProvider(
 		.sort((a, b) => a.id.localeCompare(b.id));
 }
 
+/** Every model, sorted by provider then id, for the "any provider" step. */
+export function allModels(models: readonly ModelIdentity[]): ModelIdentity[] {
+	return [...models].sort((a, b) => {
+		const byProvider = a.provider.localeCompare(b.provider);
+		return byProvider !== 0 ? byProvider : a.id.localeCompare(b.id);
+	});
+}
+
 function matchesQuery(text: string, query: string): boolean {
 	return text.toLowerCase().includes(query.trim().toLowerCase());
 }

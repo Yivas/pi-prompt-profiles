@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	allModels,
 	filterItems,
 	modelsOfProvider,
 	providerNames,
@@ -26,6 +27,17 @@ describe("modelsOfProvider", () => {
 			modelsOfProvider(models, "deepseek").map((model) => model.id),
 		).toEqual(["deepseek-chat", "deepseek-reasoner"]);
 		expect(modelsOfProvider(models, "missing")).toEqual([]);
+	});
+});
+
+describe("allModels", () => {
+	it("sorts every model by provider then id", () => {
+		expect(allModels(models)).toEqual([
+			{ provider: "deepseek", id: "deepseek-chat" },
+			{ provider: "deepseek", id: "deepseek-reasoner" },
+			{ provider: "openrouter", id: "alpha" },
+			{ provider: "openrouter", id: "zeta" },
+		]);
 	});
 });
 

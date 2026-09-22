@@ -9,6 +9,7 @@ Running `/sp` with no arguments opens a menu:
 - Create a new profile
 - Edit a profile
 - Bind a profile to a model
+- Remove a model binding
 - Set the default profile
 - Show status
 - Preview the active profile
@@ -29,7 +30,7 @@ Running `/sp` with no arguments opens a menu:
 | `/sp why` | Explain the resolution, including discarded rules. |
 | `/sp preview` | Show the managed block and its size. May contain private text. |
 | `/sp bind <profile> [--provider <p>] [--model <m>] [--scope ...] [--priority <n>] [--id <id>]` | Add a model binding. Run it without flags to pick a provider and then a model. |
-| `/sp unbind <binding-id> [--scope global\|project]` | Remove a binding. |
+| `/sp unbind <binding-id> [--scope global\|project]` | Remove a binding. Without `--scope` it searches the project config first, then the global one. |
 | `/sp reload` | Re-read config and profiles from disk. |
 | `/sp validate` | Report configuration problems. |
 | `/sp new <id> [--scope global\|project]` | Create a profile file. |
@@ -48,13 +49,15 @@ Every `/sp` picker — the action menu, profiles and models — opens a searchab
 list capped at ten rows and sized to the terminal: type to filter, arrow keys to
 move, Enter to select and Escape to cancel. The model step asks for a provider
 first, then for one of its models, and shows the active model and the profile's
-existing bindings. `(any provider)` and `(any model of ...)` create `*/*` and
-`provider/*` bindings. Outside the TUI the same choices appear in Pi's selector,
-paged ten at a time.
+existing bindings. `(any provider)` opens one list with every model, labelled
+`provider · id`, whose `(any model)` entry creates `*/*`; a concrete choice
+stores its own provider and id. `(any model of ...)` creates `provider/*`.
+Outside the TUI the same choices appear in Pi's selector, paged ten at a time.
 
 `/sp use` and `/sp auto` change only the current session. They do not modify
 `config.json`. Persistent operations take an explicit `--scope` or a scope you
-choose in the menu.
+choose in the menu; `/sp unbind` without `--scope` is the exception and searches
+both configs, project first.
 
 ## Settings
 

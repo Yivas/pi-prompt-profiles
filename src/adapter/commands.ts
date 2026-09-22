@@ -7,6 +7,7 @@ import type {
 import { composeManagedBlock, stripManagedBlocks } from "../core/compose.js";
 import { loadConfigFile } from "../core/config.js";
 import { isSafeId } from "../core/ids.js";
+import { matchRule } from "../core/match.js";
 import {
 	atomicWriteFile,
 	configPath,
@@ -15,6 +16,7 @@ import {
 	projectRoot,
 } from "../core/paths.js";
 import {
+	allModels,
 	modelsOfProvider,
 	type PickerItem,
 	providerNames,
@@ -37,7 +39,9 @@ import {
 	type RawConfig,
 	writeRawConfigIfUnchanged,
 } from "./config-edit.js";
+import { identityOf } from "./model.js";
 import { selectItem } from "./picker.js";
+import { selectionLabel } from "./state.js";
 import { messageOf, type Runtime } from "./runtime.js";
 
 const COMMAND_NAME = "sp";
@@ -400,6 +404,7 @@ async function interactiveMenu(
 		"Create a new profile",
 		"Edit a profile",
 		"Bind a profile to a model",
+		"Remove a model binding",
 		"Set the default profile",
 		"Show status",
 		"Preview the active profile",
@@ -499,6 +504,9 @@ async function interactiveMenu(
 			}
 			break;
 		}
+		case "Remove a model binding":
+			await removeBindingInteractive(runtime, ctx);
+			break;
 		case "Set the default profile": {
 			const ref = await pickProfileRef(runtime, ctx);
 			if (ref) {
@@ -1021,7 +1029,29 @@ async function chooseBindingTarget(
 		return undefined;
 	}
 	if (provider === "*") {
-		return { provider: "*", model: "*" };
+		const target = await selectItem(ctx, {
+			title: `Bind ${formatRef(ref)} — models of any provider`,
+			subtitle,
+			items: [
+				{ value: "*", label: "(any model)" },
+				...allModels(models).map((entry) => ({
+					// A model id can contain "/", so provider and id travel as JSON.
+					value: JSON.stringify([entry.provider, entry.id]),
+					label: `${entry.provider} · ${entry.id}`,
+				})),
+			],
+		});
+		if (target === undefined) {
+			return undefined;
+		}
+		if (target === "*") {
+			return { provider: "*", model: "*" };
+		}
+		const [targetProvider, targetModel] = JSON.parse(target) as [
+			string,
+			string,
+		];
+		return { provider: targetProvider, model: targetModel };
 	}
 	const model = await selectItem(ctx, {
 		title: `Bind ${formatRef(ref)} — models of ${provider}`,
@@ -1069,6 +1099,34 @@ function bindingContext(
 	const existing =
 		entries.length > 0 ? `bindings ${entries.join(" ")}` : "no bindings yet";
 	return `${current} · ${existing}`;
+}
+
+/**
+ * A binding can be saved correctly and still never fire: a pinned selection
+ * bypasses matching, and a wrong provider or model id fails silently at resolve
+ * time. Report both right after the write, where the user can still act.
+ */
+function reportBindingCaveats(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+	binding: Binding,
+): void {
+	if (runtime.selection.mode !== "auto") {
+		notify(
+			ctx,
+			`Selection is "${selectionLabel(runtime.selection)}" and bindings apply only in auto mode; run /sp auto to test this binding.`,
+			"warning",
+		);
+		return;
+	}
+	const active = identityOf(ctx.model);
+	if (active && !binding.match.some((rule) => matchRule(rule, active))) {
+		notify(
+			ctx,
+			`This binding does not match the current model ${active.provider}/${active.id}.`,
+			"warning",
+		);
+	}
 }
 
 async function handleBind(
@@ -1168,9 +1226,31 @@ async function handleBind(
 			ctx,
 			`Bound ${formatRef(ref)} to ${provider}/${model} (priority ${priority}) in the ${scope} config.`,
 		);
+		reportBindingCaveats(runtime, ctx, binding);
 	} catch (cause) {
 		notify(ctx, messageOf(cause), "error");
 	}
+}
+
+/** Drops every binding with this id and returns how many entries were removed. */
+function removeBindingFrom(config: RawConfig, id: string): number {
+	const current = config.bindings;
+	if (!Array.isArray(current)) {
+		return 0;
+	}
+	const filtered = current.filter(
+		(entry) =>
+			!(
+				typeof entry === "object" &&
+				entry !== null &&
+				(entry as { id?: unknown }).id === id
+			),
+	);
+	const removed = current.length - filtered.length;
+	if (removed > 0) {
+		config.bindings = filtered;
+	}
+	return removed;
 }
 
 async function handleUnbind(
@@ -1196,24 +1276,92 @@ async function handleUnbind(
 		);
 		return;
 	}
-	const scope = scopeFlag ?? "global";
+	// Without --scope the binding can live in either config, so search both.
+	// Only the implicit search skips an untrusted project: an explicit
+	// --scope project keeps editConfig's trust error.
+	const scopes: Scope[] = scopeFlag ? [scopeFlag] : ["project", "global"];
+	let removed = 0;
+	const removedFrom: Scope[] = [];
+	try {
+		for (const scope of scopes) {
+			if (!scopeFlag && scope === "project" && !ctx.isProjectTrusted()) {
+				continue;
+			}
+			let removedHere = 0;
+			editConfig(runtime, ctx, scope, (config) => {
+				removedHere = removeBindingFrom(config, id);
+				return removedHere > 0;
+			});
+			if (removedHere > 0) {
+				removed += removedHere;
+				removedFrom.push(scope);
+			}
+		}
+	} catch (cause) {
+		// A two-config pass can fail halfway. Report what already changed so a
+		// plain repeat finishes the job instead of leaving a silent half state.
+		const partial =
+			removedFrom.length > 0
+				? ` Removed ${removed} from the ${removedFrom.join(" and ")} config first; run /sp unbind ${id} again to finish.`
+				: "";
+		// Whatever was written must take effect now: the cached state would keep
+		// applying a binding that is already gone from disk.
+		runtime.reload();
+		notify(ctx, `${messageOf(cause)}${partial}`, "error");
+		return;
+	}
+	try {
+		runtime.reload();
+		runtime.ensure(ctx);
+	} catch (cause) {
+		notify(
+			ctx,
+			`Written, but the reload failed: ${messageOf(cause)}. Run /sp reload.`,
+			"error",
+		);
+		return;
+	}
+	notify(
+		ctx,
+		removed > 0
+			? `Removed ${removed} binding(s) named "${id}" from the ${removedFrom.join(" and ")} config.`
+			: `No binding named "${id}" was found${scopeFlag ? ` in the ${scopeFlag} config` : ""}.`,
+	);
+}
+
+async function removeBindingInteractive(
+	runtime: Runtime,
+	ctx: ExtensionCommandContext,
+): Promise<void> {
+	const loaded = runtime.loaded;
+	const entries: Array<{ scope: Scope; binding: Binding }> = [];
+	for (const binding of loaded?.projectConfig.config?.bindings ?? []) {
+		entries.push({ scope: "project", binding });
+	}
+	for (const binding of loaded?.globalConfig.config?.bindings ?? []) {
+		entries.push({ scope: "global", binding });
+	}
+	if (entries.length === 0) {
+		notify(ctx, "No bindings to remove.");
+		return;
+	}
+	const choice = await selectItem(ctx, {
+		title: "Remove a model binding",
+		items: entries.map(({ scope, binding }) => ({
+			value: JSON.stringify([scope, binding.id]),
+			label: `${scope}:${binding.id} — ${binding.profile} ← ${binding.match
+				.map((rule) => `${rule.provider ?? "*"}/${rule.model ?? "*"}`)
+				.join(",")}`,
+		})),
+	});
+	if (choice === undefined) {
+		return;
+	}
+	const [scope, id] = JSON.parse(choice) as [Scope, string];
 	try {
 		let removed = 0;
 		editConfig(runtime, ctx, scope, (config) => {
-			const current = config.bindings;
-			if (!Array.isArray(current)) {
-				return false;
-			}
-			const before = current.length;
-			config.bindings = current.filter(
-				(entry) =>
-					!(
-						typeof entry === "object" &&
-						entry !== null &&
-						(entry as { id?: unknown }).id === id
-					),
-			);
-			removed = before - (config.bindings as unknown[]).length;
+			removed = removeBindingFrom(config, id);
 			return removed > 0;
 		});
 		runtime.reload();
@@ -1221,7 +1369,7 @@ async function handleUnbind(
 		notify(
 			ctx,
 			removed > 0
-				? `Removed ${removed} binding(s) named "${id}".`
+				? `Removed binding "${id}" from the ${scope} config.`
 				: `No binding named "${id}" was found in the ${scope} config.`,
 		);
 	} catch (cause) {

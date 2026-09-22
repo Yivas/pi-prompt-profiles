@@ -7,6 +7,23 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+### Added
+
+- "Remove a model binding" in the guided menu, listing every binding of both
+  configs with its scope, profile and rules.
+- `/sp bind` warns when the session selection is `manual` or `off` (bindings
+  apply only in auto mode) and when the new binding does not match the active
+  model.
+
+### Changed
+
+- `(any provider)` in the bind picker now opens one list with every model,
+  labelled `provider · id`, so a single model of any provider can be chosen;
+  its `(any model)` entry still creates `*/*`. Before, the step ended
+  immediately with `*/*` and no model could be picked.
+- `/sp unbind <binding-id>` without `--scope` searches the project config first
+  and then the global one, instead of the global config only.
+
 ## 0.6.0 - 2026-09-19
 
 ### Added

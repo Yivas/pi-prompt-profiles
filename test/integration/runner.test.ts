@@ -405,13 +405,14 @@ describe("extension integration (real runner, simulated transport)", () => {
 		});
 	});
 
-	it("binds to any provider from the interactive picker", async () => {
+	it("binds to any model from the any-provider step", async () => {
 		const harness = await setup({
 			models: [{ provider: "deepseek", id: "deepseek-chat" }],
 			selectAnswers: [
 				"Bind a profile to a model",
 				"global:base",
 				"(any provider)",
+				"(any model)",
 			],
 		});
 		const command = harness.runner.getCommand("sp");
@@ -425,6 +426,33 @@ describe("extension integration (real runner, simulated transport)", () => {
 		expect(config.bindings?.[0]?.match?.[0]).toEqual({
 			provider: "*",
 			model: "*",
+		});
+	});
+
+	it("binds to one model of any provider from the any-provider step", async () => {
+		const harness = await setup({
+			models: [
+				{ provider: "deepseek", id: "deepseek-chat" },
+				{ provider: "openrouter", id: "zeta" },
+			],
+			selectAnswers: [
+				"Bind a profile to a model",
+				"global:base",
+				"(any provider)",
+				"zeta",
+			],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(config.bindings?.[0]?.match?.[0]).toEqual({
+			provider: "openrouter",
+			model: "zeta",
 		});
 	});
 
@@ -484,6 +512,276 @@ describe("extension integration (real runner, simulated transport)", () => {
 		});
 		const modelOptions = harness.selectCalls.at(-1) ?? [];
 		expect(modelOptions.length).toBeLessThanOrEqual(11);
+	});
+
+	it("removes a binding from the interactive menu", async () => {
+		const harness = await setup({
+			config: {
+				version: 1,
+				selection: { mode: "auto" },
+				defaultProfile: "global:base",
+				bindings: [
+					{
+						id: "ds",
+						profile: "global:review",
+						match: [{ provider: "deepseek", model: "deepseek-chat" }],
+					},
+				],
+			},
+			selectAnswers: ["Remove a model binding", "ds"],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(config.bindings ?? []).toEqual([]);
+		expect(
+			harness.notices.some((notice) => notice.includes('Removed binding "ds"')),
+		).toBe(true);
+	});
+
+	it("unbinds without --scope from the global config", async () => {
+		const harness = await setup({
+			config: {
+				version: 1,
+				selection: { mode: "auto" },
+				defaultProfile: "global:base",
+				bindings: [
+					{
+						id: "ds",
+						profile: "global:review",
+						match: [{ provider: "deepseek", model: "deepseek-chat" }],
+					},
+				],
+			},
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("unbind ds", harness.runner.createCommandContext());
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(config.bindings ?? []).toEqual([]);
+	});
+
+	it("unbinds without --scope from the project config", async () => {
+		const harness = await setup({ projectTrusted: true });
+		const projectFile = path.join(
+			harness.cwd,
+			".pi",
+			"system-prompts",
+			"config.json",
+		);
+		fs.mkdirSync(path.dirname(projectFile), { recursive: true });
+		fs.writeFileSync(
+			projectFile,
+			JSON.stringify({
+				version: 1,
+				bindings: [
+					{
+						id: "ds",
+						profile: "global:review",
+						match: [{ provider: "deepseek", model: "deepseek-chat" }],
+					},
+				],
+			}),
+		);
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("unbind ds", harness.runner.createCommandContext());
+		expect(
+			JSON.parse(fs.readFileSync(projectFile, "utf8")).bindings ?? [],
+		).toEqual([]);
+		expect(
+			harness.notices.some((notice) => notice.includes("project config")),
+		).toBe(true);
+	});
+
+	it("keeps the trust error for an explicit --scope project", async () => {
+		const harness = await setup({ projectTrusted: false });
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"unbind ds --scope project",
+			harness.runner.createCommandContext(),
+		);
+		expect(
+			harness.notices.some((notice) => notice.includes("not trusted")),
+		).toBe(true);
+	});
+
+	it("unbinds the same id from both configs in one pass", async () => {
+		const harness = await setup({
+			projectTrusted: true,
+			config: {
+				version: 1,
+				bindings: [
+					{
+						id: "ds",
+						profile: "global:review",
+						match: [{ provider: "deepseek", model: "deepseek-chat" }],
+					},
+				],
+			},
+		});
+		const projectFile = path.join(
+			harness.cwd,
+			".pi",
+			"system-prompts",
+			"config.json",
+		);
+		fs.mkdirSync(path.dirname(projectFile), { recursive: true });
+		fs.writeFileSync(
+			projectFile,
+			JSON.stringify({
+				version: 1,
+				bindings: [
+					{
+						id: "ds",
+						profile: "global:review",
+						match: [{ provider: "deepseek", model: "deepseek-chat" }],
+					},
+				],
+			}),
+		);
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("unbind ds", harness.runner.createCommandContext());
+		const globalConfig = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(globalConfig.bindings ?? []).toEqual([]);
+		expect(
+			JSON.parse(fs.readFileSync(projectFile, "utf8")).bindings ?? [],
+		).toEqual([]);
+		expect(
+			harness.notices.some((notice) =>
+				notice.includes("project and global config"),
+			),
+		).toBe(true);
+	});
+
+	it("reports the half-done removal when the second config fails", async () => {
+		const harness = await setup({
+			projectTrusted: true,
+			config: { version: 99 },
+		});
+		const projectFile = path.join(
+			harness.cwd,
+			".pi",
+			"system-prompts",
+			"config.json",
+		);
+		fs.mkdirSync(path.dirname(projectFile), { recursive: true });
+		fs.writeFileSync(
+			projectFile,
+			JSON.stringify({
+				version: 1,
+				bindings: [
+					{
+						id: "ds",
+						profile: "global:review",
+						match: [{ provider: "deepseek", model: "deepseek-chat" }],
+					},
+				],
+			}),
+		);
+		const command = harness.runner.getCommand("sp");
+		// The project config is written after setup's session_start, so the
+		// cached state must be refreshed before it can bind anything.
+		await command?.handler("reload", harness.runner.createCommandContext());
+		const before = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(before?.systemPrompt ?? "").toContain("REVIEW PROFILE BODY");
+		await command?.handler("unbind ds", harness.runner.createCommandContext());
+		expect(
+			JSON.parse(fs.readFileSync(projectFile, "utf8")).bindings ?? [],
+		).toEqual([]);
+		expect(
+			harness.notices.some((notice) => notice.includes("again to finish")),
+		).toBe(true);
+		const after = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(after?.systemPrompt).toBeUndefined();
+	});
+
+	it("switches to the bound profile when the model changes", async () => {
+		const harness = await setup({
+			config: {
+				version: 1,
+				selection: { mode: "auto" },
+				defaultProfile: "global:base",
+				bindings: [
+					{
+						id: "ds",
+						profile: "global:review",
+						match: [{ provider: "deepseek", model: "deepseek-chat" }],
+					},
+				],
+			},
+		});
+		const bound = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(bound?.systemPrompt ?? "").toContain("REVIEW PROFILE BODY");
+		harness.setModel({
+			provider: "openrouter",
+			id: "zeta",
+		} as unknown as Model<Api>);
+		const other = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(other?.systemPrompt ?? "").toContain("BASE PROFILE BODY");
+		expect(other?.systemPrompt ?? "").not.toContain("REVIEW PROFILE BODY");
+	});
+
+	it("warns when a binding is written under a pinned selection", async () => {
+		const harness = await setup();
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("use review", harness.runner.createCommandContext());
+		await command?.handler(
+			"bind base --provider deepseek --model deepseek-chat",
+			harness.runner.createCommandContext(),
+		);
+		expect(
+			harness.notices.some((notice) =>
+				notice.includes("bindings apply only in auto mode"),
+			),
+		).toBe(true);
+	});
+
+	it("warns when the new binding does not match the current model", async () => {
+		const harness = await setup();
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"bind base --provider openrouter --model zeta",
+			harness.runner.createCommandContext(),
+		);
+		expect(
+			harness.notices.some((notice) =>
+				notice.includes("does not match the current model"),
+			),
+		).toBe(true);
 	});
 
 	it("keeps the default profile out of a subagent", async () => {
@@ -778,6 +1076,7 @@ describe("extension integration (real runner, simulated transport)", () => {
 	it("changes a setting from the interactive menu", async () => {
 		const harness = await setup({
 			selectAnswers: [
+				"More…",
 				"Change a setting",
 				"Global (all projects)",
 				"subagents",
