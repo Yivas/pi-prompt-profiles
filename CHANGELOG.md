@@ -5,6 +5,15 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project follows the `0.y.z` convention used by its author: `PATCH` for
 compatible fixes, `MINOR` for features or breaking changes.
 
+## Unreleased
+
+### Fixed
+
+- The guided menu had no entry for the control statement, so the value could
+  only be changed by remembering `/sp control-text`. The menu now offers
+  "Change the control statement", which opens the same `full`/`none` picker and
+  writes to the active profile's own config.
+
 ## 0.9.0 - 2026-10-01
 
 ### Added

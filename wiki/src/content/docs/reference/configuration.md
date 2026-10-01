@@ -89,7 +89,10 @@ complete, valid file that turns the statement off for `base`:
 
 Only the selected profile's own metadata is read. `controlText` is never
 inherited from an `extends` parent: a profile without the key keeps `full` even
-when the profile it extends sets `none`.
+when the profile it extends sets `none`. The value belongs to each profile and
+is not a global or session setting: two profiles in one `config.json` can
+differ, and switching profiles restores the value stored for the profile that
+becomes active.
 
 Either value leaves the rest of the block intact. The begin and end markers that
 delimit the managed block stay in place, and so do the profile bodies and their

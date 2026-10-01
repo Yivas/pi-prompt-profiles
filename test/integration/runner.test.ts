@@ -485,6 +485,115 @@ describe("extension integration (real runner, simulated transport)", () => {
 		).toBe(true);
 	});
 
+	it("changes the control statement from the guided menu and applies it at once", async () => {
+		// Twelve actions no longer fit one selector page, so the entry lives behind
+		// "More…" outside the TUI, exactly as the menu already pages its tail.
+		const harness = await setup({
+			selectAnswers: ["More…", "Change the control statement", "none"],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(config.profiles.base.controlText).toBe("none");
+		expect(
+			harness.notices.some((notice) =>
+				notice.includes('controlText set to "none" for global:base'),
+			),
+		).toBe(true);
+		// The menu entry opens the same picker as `/sp control-text`.
+		const labels = harness.selectCalls.at(-1) ?? [];
+		expect(labels.some((label) => label.includes("(current)"))).toBe(true);
+		const result = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		const prompt = result?.systemPrompt ?? "";
+		expect(prompt).not.toContain("primary system instructions");
+		expect(prompt).toContain("BASE PROFILE BODY");
+		expect(prompt.split(MANAGED_BEGIN)).toHaveLength(2);
+	});
+
+	it("keeps the control statement when the menu picker is cancelled", async () => {
+		const harness = await setup({
+			selectAnswers: ["More…", "Change the control statement"],
+		});
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		const before = fs.readFileSync(file, "utf8");
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		expect(fs.readFileSync(file, "utf8")).toBe(before);
+		expect(
+			harness.notices.some((notice) => notice.includes("was not changed")),
+		).toBe(true);
+	});
+
+	it("reports no active profile from the guided menu entry and writes nothing", async () => {
+		const harness = await setup({
+			config: { version: 1, selection: { mode: "off" } },
+			selectAnswers: ["More…", "Change the control statement"],
+		});
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		const before = fs.readFileSync(file, "utf8");
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		expect(fs.readFileSync(file, "utf8")).toBe(before);
+		expect(
+			harness.notices.some((notice) => notice.includes("No active profile")),
+		).toBe(true);
+	});
+
+	it("keeps the action after the control statement entry reachable", async () => {
+		const harness = await setup({
+			selectAnswers: ["More…", "Turn the manager off for this session"],
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("", harness.runner.createCommandContext());
+		expect(
+			harness.notices.some((notice) => notice.includes("Selection: off")),
+		).toBe(true);
+	});
+
+	it("keeps the control statement of each profile while the session switches", async () => {
+		const harness = await setup({
+			selectAnswers: ["More…", "Change the control statement", "none"],
+		});
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		const command = harness.runner.getCommand("sp");
+		const prompt = async () =>
+			(
+				await harness.runner.emitBeforeAgentStart(
+					"hi",
+					undefined,
+					BASE_PROMPT,
+					{ cwd: harness.cwd },
+				)
+			)?.systemPrompt ?? "";
+		// The menu writes to the profile that is active at that moment: `review`.
+		await command?.handler("use review", harness.runner.createCommandContext());
+		await command?.handler("", harness.runner.createCommandContext());
+		const config = JSON.parse(fs.readFileSync(file, "utf8"));
+		expect(config.profiles).toEqual({ review: { controlText: "none" } });
+		expect(config.defaultProfile).toBe("global:base");
+		const reviewPrompt = await prompt();
+		expect(reviewPrompt).toContain("REVIEW PROFILE BODY");
+		expect(reviewPrompt).not.toContain("primary system instructions");
+		// `base` kept its own value: the choice is per profile, not a global switch.
+		await command?.handler("use base", harness.runner.createCommandContext());
+		const basePrompt = await prompt();
+		expect(basePrompt).toContain("BASE PROFILE BODY");
+		expect(basePrompt).toContain("primary system instructions");
+		// Switching back recovers the value stored for `review`.
+		await command?.handler("use review", harness.runner.createCommandContext());
+		expect(await prompt()).not.toContain("primary system instructions");
+	});
+
 	it("preserves other metadata and unknown keys when setting controlText", async () => {
 		const harness = await setup({
 			config: {

@@ -418,6 +418,7 @@ async function interactiveMenu(
 		"Reload from disk",
 		"Show configuration",
 		"Change a setting",
+		"Change the control statement",
 		"Turn the manager off for this session",
 	];
 	const choice = await selectItem(ctx, {
@@ -532,6 +533,11 @@ async function interactiveMenu(
 		}
 		case "Change a setting":
 			await changeSettingInteractive(runtime, ctx);
+			break;
+		case "Change the control statement":
+			// The same handler as `/sp control-text`, so the menu and the subcommand
+			// share one picker, one diagnostic and one write path.
+			await handleControlText(runtime, ctx, { positional: [], flags: {} });
 			break;
 		case "Turn the manager off for this session":
 			runtime.setSessionSelection(ctx, { mode: "off" }, "session");

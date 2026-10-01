@@ -165,7 +165,7 @@ provider, filtering and the visible window. `src/adapter/picker.ts` turns it int
 `SearchList`, a component shown with `ctx.ui.custom` that filters as the user
 types and renders at most ten rows, sized down to the terminal height. Pi's own
 extension selector renders every option and has no filter, so handing it a full
-model catalog, or the nine action labels, pushed the dialog off the screen.
+model catalog, or the action labels, pushed the dialog off the screen.
 Outside the TUI, `selectItem` falls back to `ctx.ui.select` with ten-item pages.
 The action menu, the profile pickers and `/sp bind` all go through it; the bind
 flow asks for a provider and then a model, with `*` options for `provider/*` and
