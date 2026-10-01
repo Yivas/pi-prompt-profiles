@@ -14,6 +14,11 @@ compatible fixes, `MINOR` for features or breaking changes.
   `none` writes the profile bodies only, with the block markers and their order
   unchanged. Only the selected profile's metadata is read, so the value is never
   inherited from an `extends` parent.
+- `/sp control-text` sets that key for the active profile: without arguments it
+  shows a `full`/`none` picker that marks the current value, and
+  `/sp control-text full|none` writes it directly without a picker. Both write to
+  the profile's own config, apply on the next turn without `/sp reload`, and
+  leave the other keys and metadata in place.
 
 ## 0.8.0 - 2026-09-22
 

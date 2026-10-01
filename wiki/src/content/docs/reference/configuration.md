@@ -98,8 +98,12 @@ extension finds and removes its own block by matching them before writing the
 new one; that is what keeps composition idempotent and prevents the prompt from
 accumulating duplicates.
 
-The key is not exposed through `/sp set`. Edit `config.json`, run `/sp reload`,
-then `/sp preview` to see the block that will be sent.
+The key is not a `/sp set` key; it has its own command. `/sp control-text` opens
+a `full`/`none` picker that marks the current value, and
+`/sp control-text full|none` writes it directly. Both target the profile that is
+active now, write to that profile's own config and apply without `/sp reload`.
+Editing the key by hand still works: change `config.json`, run `/sp reload`, then
+`/sp preview` to see the block that will be sent.
 
 ### `bindings`
 

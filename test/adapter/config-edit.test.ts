@@ -3,7 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+	applyControlText,
 	readRawConfig,
+	type RawConfig,
 	writeRawConfigIfUnchanged,
 } from "../../src/adapter/config-edit.js";
 
@@ -80,5 +82,68 @@ describe("writeRawConfigIfUnchanged", () => {
 		expect(() =>
 			writeRawConfigIfUnchanged(file, snapshot, snapshot.config),
 		).toThrow(/appeared on disk/);
+	});
+});
+
+describe("applyControlText", () => {
+	it("creates the profiles object and the metadata when missing", () => {
+		const config: RawConfig = { version: 1 };
+		applyControlText(config, "base", "none");
+		expect(config.profiles).toEqual({ base: { controlText: "none" } });
+	});
+
+	it("preserves other profiles, their metadata and unknown keys", () => {
+		const config: RawConfig = {
+			version: 1,
+			custom: true,
+			profiles: {
+				base: { controlText: "full", description: "General." },
+				review: { extends: "base" },
+			},
+		};
+		applyControlText(config, "base", "none");
+		expect(config).toEqual({
+			version: 1,
+			custom: true,
+			profiles: {
+				base: { controlText: "none", description: "General." },
+				review: { extends: "base" },
+			},
+		});
+	});
+
+	it("refuses a malformed profiles container without mutating it", () => {
+		const config: RawConfig = { version: 1, profiles: [] };
+		expect(() => applyControlText(config, "base", "none")).toThrow(
+			/profiles must be an object/,
+		);
+		expect(config.profiles).toEqual([]);
+	});
+
+	it("refuses malformed profile metadata without mutating it", () => {
+		const config: RawConfig = { version: 1, profiles: { base: "oops" } };
+		expect(() => applyControlText(config, "base", "none")).toThrow(
+			/profiles\.base must be an object/,
+		);
+		expect(config.profiles).toEqual({ base: "oops" });
+	});
+
+	it("creates metadata for ids that shadow Object members", () => {
+		for (const id of ["constructor", "toString", "valueOf", "hasOwnProperty"]) {
+			const config: RawConfig = { version: 1 };
+			applyControlText(config, id, "none");
+			expect(config.profiles).toEqual({ [id]: { controlText: "none" } });
+		}
+	});
+
+	it("keeps the metadata of an existing profile whose id shadows Object", () => {
+		const config: RawConfig = {
+			version: 1,
+			profiles: { constructor: { description: "Ctor." } },
+		};
+		applyControlText(config, "constructor", "none");
+		expect(config.profiles).toEqual({
+			constructor: { description: "Ctor.", controlText: "none" },
+		});
 	});
 });

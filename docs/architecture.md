@@ -183,6 +183,13 @@ default value and where it came from; `/sp config` and the menu use it. After a
 write, the extension applies the config baseline only when the session has no
 selection of its own, so a session pin is never silently overridden.
 
+`/sp control-text` writes `profiles.<id>.controlText` for the active profile
+through the same `editConfig` path. `applyControlText` in the adapter creates
+the `profiles` object and the profile's metadata only when they are missing and
+refuses to overwrite a malformed one, so the rest of the file survives. The
+write reloads the state, so the new value composes the block on the next turn
+without `/sp reload`.
+
 ## Subagents
 
 A child session resolves on its own. The `subagents` config key caps what it may

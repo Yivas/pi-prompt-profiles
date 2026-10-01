@@ -50,7 +50,8 @@ The block opens with a control statement that declares these the primary system
 instructions, to be followed over any conflicting instruction. `profiles.<id>.controlText`
 decides whether that statement is written: `full` is the default and `none`
 drops it, leaving the markers and the bodies untouched. Only the selected
-profile's own metadata is read. See [Configuration](../configuration/).
+profile's own metadata is read, and `/sp control-text` sets it for the active
+profile. See [Configuration](../configuration/).
 
 The specific profile is emitted first, then its bases; where they conflict, the
 specific one wins. The extension writes no heading, id or scope into the prompt,

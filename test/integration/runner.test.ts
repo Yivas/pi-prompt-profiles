@@ -13,7 +13,7 @@ import {
 	type ModelRegistry,
 	SessionManager,
 } from "@earendil-works/pi-coding-agent";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MANAGED_BEGIN } from "../../src/core/compose.js";
 import { SELECTION_CUSTOM_TYPE } from "../../src/adapter/state.js";
 
@@ -61,6 +61,7 @@ interface HarnessOptions {
 	models?: Array<{ provider: string; id: string }>;
 	config?: Record<string, unknown>;
 	subagent?: boolean;
+	noUI?: boolean;
 }
 
 const DEFAULT_MODEL = {
@@ -197,7 +198,13 @@ async function setup(options: HarnessOptions = {}): Promise<Harness> {
 			}
 		},
 	} as unknown as ExtensionUIContext;
-	runner.setUIContext(ui, "print");
+	// A run without a UI context is how `hasUI` becomes false, so the direct
+	// form of a command can be told apart from its interactive selector.
+	if (options.noUI) {
+		runner.setUIContext(undefined, "print");
+	} else {
+		runner.setUIContext(ui, "print");
+	}
 
 	// Hermetic: the ambient environment must not decide whether this is a child.
 	if (options.subagent) {
@@ -340,6 +347,296 @@ describe("extension integration (real runner, simulated transport)", () => {
 			{ cwd: harness.cwd },
 		);
 		expect(again?.systemPrompt).toBe(prompt);
+	});
+
+	it("sets controlText on the active profile and applies it without a reload", async () => {
+		const harness = await setup();
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"control-text none",
+			harness.runner.createCommandContext(),
+		);
+		const config = JSON.parse(fs.readFileSync(file, "utf8"));
+		expect(config.profiles.base.controlText).toBe("none");
+		expect(config.defaultProfile).toBe("global:base");
+		const result = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		const prompt = result?.systemPrompt ?? "";
+		expect(prompt).not.toContain("primary system instructions");
+		expect(prompt).toContain("BASE PROFILE BODY");
+		expect(prompt.split(MANAGED_BEGIN)).toHaveLength(2);
+	});
+
+	it("sets controlText back to full on the active profile", async () => {
+		const harness = await setup({
+			config: {
+				version: 1,
+				selection: { mode: "auto" },
+				defaultProfile: "global:base",
+				profiles: { base: { controlText: "none" } },
+			},
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"control-text full",
+			harness.runner.createCommandContext(),
+		);
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		expect(
+			JSON.parse(fs.readFileSync(file, "utf8")).profiles.base.controlText,
+		).toBe("full");
+		const result = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(result?.systemPrompt ?? "").toContain("primary system instructions");
+	});
+
+	it("picks controlText from the selector and shows the current value", async () => {
+		const harness = await setup({ selectAnswers: ["none"] });
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"control-text",
+			harness.runner.createCommandContext(),
+		);
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		expect(
+			JSON.parse(fs.readFileSync(file, "utf8")).profiles.base.controlText,
+		).toBe("none");
+		const labels = harness.selectCalls.at(-1) ?? [];
+		expect(labels.some((label) => label.includes("(current)"))).toBe(true);
+	});
+
+	it("leaves controlText untouched when the selector is cancelled", async () => {
+		const harness = await setup();
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		const before = fs.readFileSync(file, "utf8");
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"control-text",
+			harness.runner.createCommandContext(),
+		);
+		expect(fs.readFileSync(file, "utf8")).toBe(before);
+		expect(
+			harness.notices.some((notice) => notice.includes("was not changed")),
+		).toBe(true);
+	});
+
+	it("rejects an invalid controlText value without writing", async () => {
+		const harness = await setup();
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		const before = fs.readFileSync(file, "utf8");
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"control-text silent",
+			harness.runner.createCommandContext(),
+		);
+		expect(fs.readFileSync(file, "utf8")).toBe(before);
+		expect(
+			harness.notices.some((notice) => notice.includes("Invalid value")),
+		).toBe(true);
+	});
+
+	it("refuses flags and extra operands instead of writing to another scope", async () => {
+		const harness = await setup();
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		const before = fs.readFileSync(file, "utf8");
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"control-text none --scope global",
+			harness.runner.createCommandContext(),
+		);
+		await command?.handler(
+			"control-text full none",
+			harness.runner.createCommandContext(),
+		);
+		expect(fs.readFileSync(file, "utf8")).toBe(before);
+		expect(
+			harness.notices.some((notice) => notice.includes("takes no flags")),
+		).toBe(true);
+		expect(
+			harness.notices.some((notice) =>
+				notice.includes("Usage: /sp control-text"),
+			),
+		).toBe(true);
+	});
+
+	it("reports no active profile for control-text and writes nothing", async () => {
+		const harness = await setup({
+			config: { version: 1, selection: { mode: "off" } },
+		});
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		const before = fs.readFileSync(file, "utf8");
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"control-text none",
+			harness.runner.createCommandContext(),
+		);
+		expect(fs.readFileSync(file, "utf8")).toBe(before);
+		expect(
+			harness.notices.some((notice) => notice.includes("No active profile")),
+		).toBe(true);
+	});
+
+	it("preserves other metadata and unknown keys when setting controlText", async () => {
+		const harness = await setup({
+			config: {
+				version: 1,
+				selection: { mode: "auto" },
+				defaultProfile: "global:base",
+				custom: "keep",
+				profiles: {
+					base: { controlText: "full", description: "General." },
+					review: { extends: "global:base" },
+				},
+			},
+		});
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"control-text none",
+			harness.runner.createCommandContext(),
+		);
+		const config = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(config.profiles.base).toEqual({
+			controlText: "none",
+			description: "General.",
+		});
+		expect(config.profiles.review).toEqual({ extends: "global:base" });
+		expect(config.custom).toBe("keep");
+	});
+
+	it("writes controlText to the project config for a project profile", async () => {
+		const harness = await setup({
+			projectTrusted: true,
+			config: {
+				version: 1,
+				selection: { mode: "auto" },
+				defaultProfile: "project:local",
+			},
+		});
+		const projectConfigFile = path.join(
+			harness.cwd,
+			".pi",
+			"system-prompts",
+			"config.json",
+		);
+		fs.mkdirSync(path.dirname(projectConfigFile), { recursive: true });
+		fs.writeFileSync(
+			projectConfigFile,
+			JSON.stringify({ version: 1, profiles: { local: {} } }),
+		);
+		const projectProfilesDir = path.join(
+			harness.cwd,
+			".pi",
+			"system-prompts",
+			"profiles",
+		);
+		fs.mkdirSync(projectProfilesDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(projectProfilesDir, "local.md"),
+			"LOCAL PROFILE BODY",
+		);
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("reload", harness.runner.createCommandContext());
+		await command?.handler(
+			"control-text none",
+			harness.runner.createCommandContext(),
+		);
+		expect(
+			JSON.parse(fs.readFileSync(projectConfigFile, "utf8")).profiles.local
+				.controlText,
+		).toBe("none");
+		const globalConfig = JSON.parse(
+			fs.readFileSync(
+				path.join(harness.agentDir, "system-prompts", "config.json"),
+				"utf8",
+			),
+		);
+		expect(globalConfig.profiles).toBeUndefined();
+	});
+
+	it("needs the value without a UI and still writes the direct form", async () => {
+		const harness = await setup({ noUI: true });
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"control-text",
+			harness.runner.createCommandContext(),
+		);
+		expect(JSON.parse(fs.readFileSync(file, "utf8")).profiles).toBeUndefined();
+		await command?.handler(
+			"control-text none",
+			harness.runner.createCommandContext(),
+		);
+		expect(
+			JSON.parse(fs.readFileSync(file, "utf8")).profiles.base.controlText,
+		).toBe("none");
+	});
+
+	it("refuses a malformed profiles container without a partial write", async () => {
+		const harness = await setup({
+			config: {
+				version: 1,
+				selection: { mode: "auto" },
+				defaultProfile: "global:base",
+				profiles: [],
+			},
+		});
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		const before = fs.readFileSync(file, "utf8");
+		const command = harness.runner.getCommand("sp");
+		await command?.handler(
+			"control-text none",
+			harness.runner.createCommandContext(),
+		);
+		expect(fs.readFileSync(file, "utf8")).toBe(before);
+		expect(
+			harness.notices.some((notice) =>
+				notice.includes("profiles must be an object"),
+			),
+		).toBe(true);
+	});
+
+	it("does not touch the session or the file when the write fails", async () => {
+		const harness = await setup();
+		const file = path.join(harness.agentDir, "system-prompts", "config.json");
+		const before = fs.readFileSync(file, "utf8");
+		const command = harness.runner.getCommand("sp");
+		// atomicWriteFile renames a temp file over the target; failing that rename
+		// is a deterministic write error on every platform, unlike EACCES.
+		const failWrite = vi.spyOn(fs, "renameSync").mockImplementation(() => {
+			throw new Error("EIO: simulated atomic write failure");
+		});
+		try {
+			await command?.handler(
+				"control-text none",
+				harness.runner.createCommandContext(),
+			);
+		} finally {
+			failWrite.mockRestore();
+		}
+		expect(fs.readFileSync(file, "utf8")).toBe(before);
+		expect(harness.notices.some((notice) => notice.includes("EIO"))).toBe(true);
+		// The state was not reloaded, so the previous block still composes.
+		const result = await harness.runner.emitBeforeAgentStart(
+			"hi",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		expect(result?.systemPrompt ?? "").toContain("primary system instructions");
 	});
 
 	it("keeps the text of an extension that appends before this one", async () => {
