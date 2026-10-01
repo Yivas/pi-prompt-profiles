@@ -59,6 +59,40 @@ describe("expandProfile", () => {
 		]);
 	});
 
+	it("defaults the control text of a profile without the key to full", () => {
+		const result = expandProfile(
+			{ scope: "global", id: "base" },
+			deps({ "global:base": "base" }),
+		);
+		expect(result.profile?.controlText).toBe("full");
+	});
+
+	it("reads the control text of the selected profile only, never of its base", () => {
+		const parentOff = expandProfile(
+			{ scope: "global", id: "review" },
+			deps(
+				{ "global:review": "specific", "global:base": "base" },
+				{
+					"global:review": { extends: "base" },
+					"global:base": { controlText: "none" },
+				},
+			),
+		);
+		expect(parentOff.profile?.controlText).toBe("full");
+
+		const childOff = expandProfile(
+			{ scope: "global", id: "review" },
+			deps(
+				{ "global:review": "specific", "global:base": "base" },
+				{
+					"global:review": { extends: "base", controlText: "none" },
+					"global:base": { controlText: "full" },
+				},
+			),
+		);
+		expect(childOff.profile?.controlText).toBe("none");
+	});
+
 	it("detects cycles", () => {
 		const result = expandProfile(
 			{ scope: "global", id: "a" },

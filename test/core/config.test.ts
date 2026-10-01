@@ -156,4 +156,36 @@ describe("loadConfigFile", () => {
 			result.diagnostics.some((entry) => entry.code === "config-subagents"),
 		).toBe(true);
 	});
+
+	it("accepts every control text value", () => {
+		for (const value of ["full", "none"]) {
+			const result = loadConfigFile(
+				writeConfig(
+					JSON.stringify({
+						version: 1,
+						profiles: { base: { controlText: value } },
+					}),
+				),
+				"global",
+			);
+			expect(result.config?.profiles?.base?.controlText).toBe(value);
+			expect(result.diagnostics).toHaveLength(0);
+		}
+	});
+
+	it("ignores an invalid control text with a warning", () => {
+		const result = loadConfigFile(
+			writeConfig(
+				JSON.stringify({
+					version: 1,
+					profiles: { base: { controlText: "silent" } },
+				}),
+			),
+			"global",
+		);
+		expect(result.config?.profiles?.base?.controlText).toBeUndefined();
+		expect(
+			result.diagnostics.some((entry) => entry.code === "config-control-text"),
+		).toBe(true);
+	});
 });

@@ -7,6 +7,14 @@ compatible fixes, `MINOR` for features or breaking changes.
 
 ## Unreleased
 
+### Added
+
+- `profiles.<id>.controlText` in `config.json` chooses whether the managed
+  block keeps its opening control statement. `full` (the default) keeps it and
+  `none` writes the profile bodies only, with the block markers and their order
+  unchanged. Only the selected profile's metadata is read, so the value is never
+  inherited from an `extends` parent.
+
 ## 0.8.0 - 2026-09-22
 
 ### Added

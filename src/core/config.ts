@@ -3,10 +3,12 @@ import { isSafeId } from "./ids.js";
 import { readTextIfExists, stripBom } from "./paths.js";
 import { resolveRef } from "./refs.js";
 import {
+	CONTROL_TEXT_MODES,
 	SELECTION_MODES,
 	SUBAGENT_POLICIES,
 	type Binding,
 	type ConfigV1,
+	type ControlTextMode,
 	type Diagnostic,
 	type MatchRule,
 	type ProfileMeta,
@@ -176,6 +178,22 @@ function validateConfig(
 						);
 					} else {
 						meta.description = value.description;
+					}
+				}
+				if (value.controlText !== undefined) {
+					if (
+						(CONTROL_TEXT_MODES as readonly string[]).includes(
+							value.controlText as string,
+						)
+					) {
+						meta.controlText = value.controlText as ControlTextMode;
+					} else {
+						diagnostics.push(
+							warn(
+								"config-control-text",
+								`${filePath}: profiles.${id}.controlText must be ${CONTROL_TEXT_MODES.map((mode) => `"${mode}"`).join(", ")} and was ignored.`,
+							),
+						);
 					}
 				}
 				profiles[id] = meta;

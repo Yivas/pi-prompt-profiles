@@ -25,11 +25,20 @@ export type SubagentPolicy = (typeof SUBAGENT_POLICIES)[number];
 /** Selection modes accepted in `config.json`. */
 export const SELECTION_MODES = ["auto", "off", "manual"] as const;
 
+/** Values accepted by `profiles.<id>.controlText` in `config.json`. */
+export const CONTROL_TEXT_MODES = ["full", "none"] as const;
+export type ControlTextMode = (typeof CONTROL_TEXT_MODES)[number];
+
 /** Optional metadata for a profile, stored in `config.json`. */
 export interface ProfileMeta {
 	/** Single optional parent profile. Bare ids resolve inside the same scope. */
 	extends?: string;
 	description?: string;
+	/**
+	 * Whether the managed block keeps its opening control statement. `full`
+	 * (the default) keeps it, `none` writes the profile bodies only.
+	 */
+	controlText?: ControlTextMode;
 }
 
 /** One provider/model rule. Absent fields behave as `*`. */
@@ -83,6 +92,11 @@ export interface ResolvedProfile {
 	ref: ProfileRef;
 	/** Specific profile first, then its bases in inheritance order. */
 	layers: ProfileLayer[];
+	/**
+	 * Control text of the selected profile. It comes from that profile's own
+	 * metadata and is never inherited from a base.
+	 */
+	controlText: ControlTextMode;
 }
 
 export type DiagnosticLevel = "info" | "warn" | "error";

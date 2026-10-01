@@ -294,6 +294,22 @@ describe("resolveProfile", () => {
 		expect(resolution.profile?.ref.id).toBe("review");
 	});
 
+	it("carries the control text of the selected profile", () => {
+		const sources = build({
+			globalConfig: {
+				version: 1,
+				profiles: { review: { controlText: "none" } },
+			},
+			globalProfiles: catalog("global", [{ id: "review", content: "REVIEW" }]),
+		});
+		const resolution = resolveProfile(
+			{ mode: "manual", profile: "global:review" },
+			{ provider: "x", id: "y" },
+			sources,
+		);
+		expect(resolution.profile?.controlText).toBe("none");
+	});
+
 	it("returns native when nothing matches", () => {
 		const sources = build({ globalConfig: { version: 1 } });
 		const resolution = resolveProfile({ mode: "auto" }, model, sources);

@@ -52,7 +52,12 @@
 						"$ref": "#/$defs/profileReference",
 						"description": "Single optional parent profile. A bare id resolves inside the same scope."
 					},
-					"description": { "type": "string" }
+					"description": { "type": "string" },
+					"controlText": {
+						"type": "string",
+						"enum": ["full", "none"],
+						"description": "Whether the managed block keeps its opening control statement. 'full' (default) keeps it; 'none' writes the profile bodies only. Read from the selected profile and never inherited."
+					}
 				}
 			}
 		},

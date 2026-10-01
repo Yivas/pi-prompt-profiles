@@ -23,7 +23,14 @@ function hashText(text: string): string {
 }
 
 export function composeManagedBlock(profile: ResolvedProfile): string {
-	const parts: string[] = [MANAGED_BEGIN, CONTROL_TEXT, ""];
+	const parts: string[] = [MANAGED_BEGIN];
+	// With `controlText: none` the block carries no heading, no primacy claim and
+	// no explanation of inheritance. The markers and the layer order stay, so the
+	// block keeps its shape and composition stays idempotent.
+	if (profile.controlText === "full") {
+		parts.push(CONTROL_TEXT);
+	}
+	parts.push("");
 	// Layers carry no heading: the prompt must not reveal the profile id, its
 	// scope or the fact that a base profile was inherited. Order plus a blank
 	// line is enough to keep them apart.

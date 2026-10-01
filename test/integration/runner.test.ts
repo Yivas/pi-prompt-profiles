@@ -280,6 +280,68 @@ describe("extension integration (real runner, simulated transport)", () => {
 		expect(prompt.split(MANAGED_BEGIN)).toHaveLength(2);
 	});
 
+	it("drops the control statement with controlText none and restores it after a reload", async () => {
+		const config = (controlText: string) => ({
+			version: 1,
+			selection: { mode: "auto" },
+			defaultProfile: "global:base",
+			profiles: { base: { controlText } },
+		});
+		const harness = await setup({ config: config("none") });
+		const without = await harness.runner.emitBeforeAgentStart(
+			"hello",
+			undefined,
+			BASE_PROMPT,
+			{ cwd: harness.cwd },
+		);
+		const bare = without?.systemPrompt ?? "";
+		expect(bare).not.toContain("System instructions");
+		expect(bare).not.toContain("primary system instructions");
+		expect(bare).toContain("BASE PROFILE BODY");
+		expect(bare).toContain("NATIVE PROMPT");
+		expect(bare.split(MANAGED_BEGIN)).toHaveLength(2);
+
+		const command = harness.runner.getCommand("sp");
+		await command?.handler("preview", harness.runner.createCommandContext());
+		const barePreview = harness.notices.at(-1) ?? "";
+		expect(barePreview).toContain("managed block:");
+		expect(barePreview).not.toContain("primary system instructions");
+
+		fs.writeFileSync(
+			path.join(harness.agentDir, "system-prompts", "config.json"),
+			JSON.stringify(config("full")),
+		);
+		await command?.handler("reload", harness.runner.createCommandContext());
+		expect(harness.notices).toContain(
+			"Reloaded config and profiles from disk.",
+		);
+
+		const withControl = await harness.runner.emitBeforeAgentStart(
+			"hello",
+			undefined,
+			bare,
+			{ cwd: harness.cwd },
+		);
+		const prompt = withControl?.systemPrompt ?? "";
+		expect(prompt).toContain("primary system instructions");
+		expect(prompt).toContain("BASE PROFILE BODY");
+		// The previous block was replaced, not stacked on top of it.
+		expect(prompt.split(MANAGED_BEGIN)).toHaveLength(2);
+
+		await command?.handler("preview", harness.runner.createCommandContext());
+		expect(harness.notices.at(-1) ?? "").toContain(
+			"primary system instructions",
+		);
+
+		const again = await harness.runner.emitBeforeAgentStart(
+			"hello",
+			undefined,
+			prompt,
+			{ cwd: harness.cwd },
+		);
+		expect(again?.systemPrompt).toBe(prompt);
+	});
+
 	it("keeps the text of an extension that appends before this one", async () => {
 		const appender = `export default function (pi) { pi.on("before_agent_start", async (event) => ({ systemPrompt: event.systemPrompt + "\\nEXTRA APPENDED" })); }\n`;
 		const harness = await setup({

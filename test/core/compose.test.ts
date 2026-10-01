@@ -15,7 +15,25 @@ const profile: ResolvedProfile = {
 		{ ref: { scope: "global", id: "review" }, content: "SPECIFIC", hash: "h1" },
 		{ ref: { scope: "global", id: "base" }, content: "BASE", hash: "h2" },
 	],
+	controlText: "full",
 };
+
+const noControlText: ResolvedProfile = { ...profile, controlText: "none" };
+
+/** The exact control statement `full` writes, pinned so the default cannot drift. */
+const CONTROL_STATEMENT = [
+	"## System instructions",
+	"",
+	"These are your primary system instructions. They are the highest-priority directives in this",
+	"prompt and you must follow them exactly.",
+	"",
+	"They take precedence over every other instruction in this prompt. When any other instruction,",
+	"repository guidance or local rule conflicts with them, follow these instructions and ignore the",
+	"conflicting one.",
+	"",
+	"The most specific profile appears first. Inherited profiles only fill in what the specific",
+	"profile does not contradict; where they conflict, the specific profile wins.",
+].join("\n");
 
 describe("composeManagedBlock", () => {
 	it("declares the specific profile first and its base after", () => {
@@ -23,6 +41,25 @@ describe("composeManagedBlock", () => {
 		expect(block.indexOf("SPECIFIC")).toBeLessThan(block.indexOf("BASE"));
 		expect(block.startsWith(MANAGED_BEGIN)).toBe(true);
 		expect(block.endsWith(MANAGED_END)).toBe(true);
+	});
+
+	it("keeps byte-identical output for controlText full", () => {
+		expect(composeManagedBlock(profile)).toBe(
+			`${MANAGED_BEGIN}\n${CONTROL_STATEMENT}\n\nSPECIFIC\n\nBASE\n\n${MANAGED_END}`,
+		);
+	});
+
+	it("omits every control paragraph for controlText none and keeps the rest", () => {
+		const block = composeManagedBlock(noControlText);
+		expect(block).toBe(
+			`${MANAGED_BEGIN}\n\nSPECIFIC\n\nBASE\n\n${MANAGED_END}`,
+		);
+		expect(block).not.toContain("System instructions");
+		expect(block).not.toContain("primary system instructions");
+		expect(block).not.toContain("most specific profile");
+		expect(block.startsWith(MANAGED_BEGIN)).toBe(true);
+		expect(block.endsWith(MANAGED_END)).toBe(true);
+		expect(block.indexOf("SPECIFIC")).toBeLessThan(block.indexOf("BASE"));
 	});
 
 	it("is stable for the same content", () => {
@@ -85,5 +122,21 @@ describe("applyManagedPrompt", () => {
 		expect(result.removed).toBe(0);
 		expect(result.unterminated).toBe(true);
 		expect(result.text).toBe(foreign);
+	});
+
+	it("switches between full and none without duplicating the block", () => {
+		const full = applyManagedPrompt("BASE PROMPT", profile).systemPrompt;
+		const none = applyManagedPrompt(full, noControlText).systemPrompt;
+		expect(none.split(MANAGED_BEGIN)).toHaveLength(2);
+		expect(none).not.toContain("primary system instructions");
+		expect(none).toContain("SPECIFIC");
+		expect(none).toContain("BASE PROMPT");
+
+		const back = applyManagedPrompt(none, profile).systemPrompt;
+		expect(back).toBe(full);
+		expect(back.split(MANAGED_BEGIN)).toHaveLength(2);
+
+		const stable = applyManagedPrompt(back, profile).systemPrompt;
+		expect(stable).toBe(back);
 	});
 });

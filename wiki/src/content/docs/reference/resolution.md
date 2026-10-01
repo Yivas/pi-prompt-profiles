@@ -47,11 +47,16 @@ permissions.
 ## Composition
 
 The block opens with a control statement that declares these the primary system
-instructions, to be followed over any conflicting instruction. The specific
-profile is emitted first, then its bases; where they conflict, the specific one
-wins. The extension writes no heading, id or scope into the prompt, so the block
-carries no identifier for the active profile. This is prompt text: it asserts
-primacy, and it still does not create a privileged message type at the API level.
+instructions, to be followed over any conflicting instruction. `profiles.<id>.controlText`
+decides whether that statement is written: `full` is the default and `none`
+drops it, leaving the markers and the bodies untouched. Only the selected
+profile's own metadata is read. See [Configuration](../configuration/).
+
+The specific profile is emitted first, then its bases; where they conflict, the
+specific one wins. The extension writes no heading, id or scope into the prompt,
+so the block carries no identifier for the active profile. This is prompt text:
+it asserts primacy, and it still does not create a privileged message type at
+the API level.
 
 Composition is idempotent: the extension removes its own leading block and
 prepends exactly one, so the prompt never accumulates duplicates.

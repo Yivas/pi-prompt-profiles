@@ -63,7 +63,43 @@ own scope.
 ### `profiles`
 
 Optional metadata keyed by profile id. `extends` points to one parent.
-`description` is shown in the picker.
+`description` is shown in the picker. `controlText` decides whether the managed
+block keeps its opening control statement.
+
+### `profiles.<id>.controlText`
+
+Where the managed block keeps the control statement it opens with.
+
+- `full` (default): the block opens with the statement that declares the profile
+the primary system instructions.
+- `none`: the block carries the profile bodies only. The heading, the primacy
+claim and the explanation of inheritance are all dropped.
+
+The key sits next to the profile's other metadata in `config.json`. This is a
+complete, valid file that turns the statement off for `base`:
+
+```json
+{
+	"version": 1,
+	"selection": { "mode": "auto" },
+	"defaultProfile": "global:base",
+	"profiles": { "base": { "controlText": "none" } }
+}
+```
+
+Only the selected profile's own metadata is read. `controlText` is never
+inherited from an `extends` parent: a profile without the key keeps `full` even
+when the profile it extends sets `none`.
+
+Either value leaves the rest of the block intact. The begin and end markers that
+delimit the managed block stay in place, and so do the profile bodies and their
+order, specific profile first and then its bases. The markers matter because the
+extension finds and removes its own block by matching them before writing the
+new one; that is what keeps composition idempotent and prevents the prompt from
+accumulating duplicates.
+
+The key is not exposed through `/sp set`. Edit `config.json`, run `/sp reload`,
+then `/sp preview` to see the block that will be sent.
 
 ### `bindings`
 
