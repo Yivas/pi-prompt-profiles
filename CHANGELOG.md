@@ -5,7 +5,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project follows the `0.y.z` convention used by its author: `PATCH` for
 compatible fixes, `MINOR` for features or breaking changes.
 
-## Unreleased
+## 0.9.1 - 2026-10-01
 
 ### Fixed
 
