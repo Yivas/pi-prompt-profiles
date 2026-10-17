@@ -19,7 +19,6 @@ Running `/sp` with no arguments opens a menu:
 - Reload from disk
 - Show configuration
 - Change a setting
-- Change the control statement
 - Turn the manager off for this session
 
 ## Subcommands
@@ -41,7 +40,6 @@ Running `/sp` with no arguments opens a menu:
 | `/sp edit <profile>` | Edit a profile in Pi's editor. |
 | `/sp default <profile> [--scope global\|project]` | Set `defaultProfile`. |
 | `/sp config [--scope global\|project]` | Show a config file and its diagnostics. |
-| `/sp control-text [full\|none]` | Set the control statement of the active profile. Without a value it opens a picker. |
 | `/sp set <key> <value> [--scope global\|project]` | Validate and change a setting. |
 | `/sp unset <key> [--scope global\|project]` | Remove a setting. |
 
@@ -85,29 +83,6 @@ which is how you find the id of the binding to remove.
 removes the key. The command applies the change, unless the session has its own
 selection (`/sp use`, `/sp auto` or `/sp off`), in which case it says so and the
 stored value applies to new sessions.
-
-## Control statement
-
-`profiles.<id>.controlText` decides whether the managed block keeps the control
-statement it opens with. Three ways set it:
-
-1. `/sp control-text` opens a `full`/`none` picker that marks the current value.
-   "Change the control statement" in the guided menu opens the same picker.
-2. `/sp control-text full|none` writes the value directly, with no picker. This
-   form works without an interactive terminal.
-3. Edit `profiles.<id>.controlText` in `config.json` and run `/sp reload`.
-
-The command targets the profile that is active now; when none is active it says
-so and changes nothing. It writes to that profile's own config, so a global
-profile is never written into the project config, and the other way round. The
-value is stored per profile, not as a global or session setting: each profile
-keeps its own `controlText`, so switching profiles — with `/sp use`, a binding or
-`defaultProfile` — brings back the value stored for the profile that becomes
-active, and the menu entry changes only the profile active at that moment. The
-change takes effect on the next turn, without `/sp reload`. `full` (the default)
-keeps the control statement; `none` writes the profile bodies only, with the
-markers and their order untouched. See [Configuration](../configuration/) for
-the field itself.
 
 ## Flags
 

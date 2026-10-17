@@ -33,16 +33,8 @@ import {
 	settingSpec,
 	unsetSetting,
 } from "../core/settings.js";
-import type {
-	Binding,
-	ControlTextMode,
-	Diagnostic,
-	ProfileRef,
-	Scope,
-} from "../core/types.js";
-import { CONTROL_TEXT_MODES } from "../core/types.js";
+import type { Binding, Diagnostic, ProfileRef, Scope } from "../core/types.js";
 import {
-	applyControlText,
 	readRawConfig,
 	type RawConfig,
 	writeRawConfigIfUnchanged,
@@ -418,7 +410,6 @@ async function interactiveMenu(
 		"Reload from disk",
 		"Show configuration",
 		"Change a setting",
-		"Change the control statement",
 		"Turn the manager off for this session",
 	];
 	const choice = await selectItem(ctx, {
@@ -533,11 +524,6 @@ async function interactiveMenu(
 		}
 		case "Change a setting":
 			await changeSettingInteractive(runtime, ctx);
-			break;
-		case "Change the control statement":
-			// The same handler as `/sp control-text`, so the menu and the subcommand
-			// share one picker, one diagnostic and one write path.
-			await handleControlText(runtime, ctx, { positional: [], flags: {} });
 			break;
 		case "Turn the manager off for this session":
 			runtime.setSessionSelection(ctx, { mode: "off" }, "session");
@@ -905,94 +891,6 @@ async function handleUnset(
 	}
 	notify(ctx, `${spec.key} removed from the ${scope} config.`);
 	reloadAfterWrite(runtime, ctx, spec.key);
-}
-
-const CONTROL_TEXT_USAGE = "Usage: /sp control-text [full|none]";
-
-/**
- * Sets `profiles.<id>.controlText` for the profile that is active right now.
- * The scope is always the profile's own, so a global profile can never be
- * written into a project config or the other way round. Without an argument it
- * opens the picker; the direct form works without a UI.
- */
-async function handleControlText(
-	runtime: Runtime,
-	ctx: ExtensionCommandContext,
-	args: ParsedArgs,
-): Promise<void> {
-	if (args.positional.length > 1) {
-		notify(ctx, CONTROL_TEXT_USAGE, "warning");
-		return;
-	}
-	if (Object.keys(args.flags).length > 0) {
-		notify(
-			ctx,
-			"control-text takes no flags: it always writes to the active profile's own scope.",
-			"error",
-		);
-		return;
-	}
-	const profile = runtime.resolve(ctx).profile;
-	if (!profile) {
-		notify(
-			ctx,
-			"No active profile. control-text changes the profile active now; select one with /sp use or a binding first.",
-			"error",
-		);
-		return;
-	}
-	const ref = profile.ref;
-	const input = args.positional[0];
-	let mode: ControlTextMode;
-	if (input === undefined) {
-		if (!ctx.hasUI) {
-			notify(
-				ctx,
-				`No interactive terminal. Pass the value: ${CONTROL_TEXT_USAGE.replace("Usage: ", "")}`,
-				"warning",
-			);
-			return;
-		}
-		const current = profile.controlText;
-		const choice = await selectItem(ctx, {
-			title: `Control statement for ${formatRef(ref)}`,
-			items: CONTROL_TEXT_MODES.map((value) => ({
-				value,
-				label:
-					value === "full"
-						? `full — keeps the control statement${current === "full" ? " (current)" : ""}`
-						: `none — writes the profile bodies only${current === "none" ? " (current)" : ""}`,
-			})),
-		});
-		if (choice === undefined) {
-			notify(ctx, "Cancelled. controlText was not changed.", "info");
-			return;
-		}
-		mode = choice as ControlTextMode;
-	} else if ((CONTROL_TEXT_MODES as readonly string[]).includes(input)) {
-		mode = input as ControlTextMode;
-	} else {
-		notify(
-			ctx,
-			`Invalid value "${input}". Use ${CONTROL_TEXT_MODES.join(" or ")}.`,
-			"error",
-		);
-		return;
-	}
-	try {
-		editConfig(runtime, ctx, ref.scope, (config) => {
-			applyControlText(config, ref.id, mode);
-			return true;
-		});
-	} catch (cause) {
-		notify(ctx, messageOf(cause), "error");
-		return;
-	}
-	notify(
-		ctx,
-		`controlText set to ${JSON.stringify(mode)} for ${formatRef(ref)} in the ${ref.scope} config. It applies on the next turn.`,
-	);
-	reloadAfterWrite(runtime, ctx, undefined);
 }
 
 async function handleNew(
@@ -1613,7 +1511,7 @@ async function handleReload(
 export function registerCommands(pi: ExtensionAPI, runtime: Runtime): void {
 	pi.registerCommand(COMMAND_NAME, {
 		description:
-			"Manage system prompt profiles (list, use, auto, off, status, why, preview, bind, unbind, reload, validate, new, edit, default, config, control-text, set, unset).",
+			"Manage system prompt profiles (list, use, auto, off, status, why, preview, bind, unbind, reload, validate, new, edit, default, config, set, unset).",
 		getArgumentCompletions(argumentPrefix: string) {
 			const subcommands = [
 				"list",
@@ -1631,7 +1529,6 @@ export function registerCommands(pi: ExtensionAPI, runtime: Runtime): void {
 				"edit",
 				"default",
 				"config",
-				"control-text",
 				"set",
 				"unset",
 				"help",
@@ -1656,11 +1553,6 @@ export function registerCommands(pi: ExtensionAPI, runtime: Runtime): void {
 					label: value,
 				}));
 			}
-			if (parts[0] === "control-text") {
-				return CONTROL_TEXT_MODES.filter((name) =>
-					name.startsWith(parts[1] ?? ""),
-				).map((name) => ({ value: `control-text ${name}`, label: name }));
-			}
 			return null;
 		},
 		async handler(args: string, ctx: ExtensionCommandContext): Promise<void> {
@@ -1679,7 +1571,7 @@ export function registerCommands(pi: ExtensionAPI, runtime: Runtime): void {
 						} else {
 							notify(
 								ctx,
-								"Usage: /sp <list|use|auto|off|status|why|preview|bind|unbind|reload|validate|new|edit|default|config|control-text|set|unset>",
+								"Usage: /sp <list|use|auto|off|status|why|preview|bind|unbind|reload|validate|new|edit|default|config|set|unset>",
 							);
 						}
 						break;
@@ -1703,7 +1595,6 @@ export function registerCommands(pi: ExtensionAPI, runtime: Runtime): void {
 								"/sp edit <profile>      edit a profile",
 								"/sp default <profile>   set defaultProfile",
 								"/sp config [--scope ...] show a config file and its diagnostics",
-								"/sp control-text [full|none] set the active profile's control statement",
 								"/sp set <key> <value>   change a setting",
 								"/sp unset <key>         remove a setting",
 							].join("\n"),
@@ -1766,9 +1657,6 @@ export function registerCommands(pi: ExtensionAPI, runtime: Runtime): void {
 						break;
 					case "config":
 						await handleConfig(runtime, ctx, operands);
-						break;
-					case "control-text":
-						await handleControlText(runtime, ctx, operands);
 						break;
 					case "set":
 						await handleSet(runtime, ctx, operands);

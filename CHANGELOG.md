@@ -5,6 +5,18 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project follows the `0.y.z` convention used by its author: `PATCH` for
 compatible fixes, `MINOR` for features or breaking changes.
 
+## Unreleased
+
+### Removed
+
+- The control statement that opened every managed block (the "System
+  instructions" heading, the priority claim and the note on inheritance) is no
+  longer written. The block now holds the markers and the profile bodies only.
+- `profiles.<id>.controlText`, `/sp control-text` and the "Change the control
+  statement" menu entry, which only chose between keeping and dropping that
+  text. An existing `controlText` key in `config.json` is ignored; remove it to
+  keep the file valid against the schema.
+
 ## 0.9.1 - 2026-10-01
 
 ### Fixed

@@ -114,16 +114,10 @@ permissions.
 2. prepends exactly one managed block;
 3. returns the result as `systemPrompt`, which Pi uses for that turn.
 
-The block opens with a short control statement that declares the profile the
-primary system instructions and requires them to be followed over any conflicting
-instruction. `profiles.<id>.controlText` decides whether that statement is
-written: `full` (the default) keeps it and `none` drops it while leaving the
-markers, the bodies and their order untouched. Only the selected profile's own
-metadata is read; the value is never inherited from a base. It then emits the
-specific profile and its bases, separated only by blank lines: the extension
+The block emits the specific profile and its bases, separated only by blank lines: the extension
 writes no heading, id or scope into the prompt, so the block carries no
-identifier for the active profile. This is prompt text: it asserts precedence
-and primacy, and it still does not create a privileged message type at the API
+identifier for the active profile and no statement about priority. This is
+prompt text, and it does not create a privileged message type at the API
 level.
 
 Composition is idempotent and stable: the same selection and content produce
@@ -182,13 +176,6 @@ reloaded and revalidated. `effectiveSetting` reports the project, global or
 default value and where it came from; `/sp config` and the menu use it. After a
 write, the extension applies the config baseline only when the session has no
 selection of its own, so a session pin is never silently overridden.
-
-`/sp control-text` writes `profiles.<id>.controlText` for the active profile
-through the same `editConfig` path. `applyControlText` in the adapter creates
-the `profiles` object and the profile's metadata only when they are missing and
-refuses to overwrite a malformed one, so the rest of the file survives. The
-write reloads the state, so the new value composes the block on the next turn
-without `/sp reload`.
 
 ## Subagents
 

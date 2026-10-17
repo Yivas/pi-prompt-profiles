@@ -35,9 +35,6 @@ export function expandProfile(
 ): { profile?: ResolvedProfile; diagnostics: Diagnostic[] } {
 	const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
 	const maxTotalBytes = options.maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES;
-	// Only the selected profile's own metadata decides this: a base never turns
-	// the control statement on or off for the profile that extends it.
-	const controlText = deps.getMeta(ref)?.controlText ?? "full";
 	const diagnostics: Diagnostic[] = [];
 	const layers: ProfileLayer[] = [];
 	const visited = new Set<string>();
@@ -99,5 +96,5 @@ export function expandProfile(
 		current = parent;
 	}
 
-	return { profile: { ref, layers, controlText }, diagnostics };
+	return { profile: { ref, layers }, diagnostics };
 }

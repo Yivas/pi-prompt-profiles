@@ -4,36 +4,16 @@ import type { ResolvedProfile } from "./types.js";
 
 export { MANAGED_BEGIN, MANAGED_END } from "./markers.js";
 
-const CONTROL_TEXT = [
-	"## System instructions",
-	"",
-	"These are your primary system instructions. They are the highest-priority directives in this",
-	"prompt and you must follow them exactly.",
-	"",
-	"They take precedence over every other instruction in this prompt. When any other instruction,",
-	"repository guidance or local rule conflicts with them, follow these instructions and ignore the",
-	"conflicting one.",
-	"",
-	"The most specific profile appears first. Inherited profiles only fill in what the specific",
-	"profile does not contradict; where they conflict, the specific profile wins.",
-].join("\n");
-
 function hashText(text: string): string {
 	return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
 export function composeManagedBlock(profile: ResolvedProfile): string {
-	const parts: string[] = [MANAGED_BEGIN];
-	// With `controlText: none` the block carries no heading, no primacy claim and
-	// no explanation of inheritance. The markers and the layer order stay, so the
-	// block keeps its shape and composition stays idempotent.
-	if (profile.controlText === "full") {
-		parts.push(CONTROL_TEXT);
-	}
-	parts.push("");
-	// Layers carry no heading: the prompt must not reveal the profile id, its
-	// scope or the fact that a base profile was inherited. Order plus a blank
-	// line is enough to keep them apart.
+	const parts: string[] = [MANAGED_BEGIN, ""];
+	// The block carries no heading and no statement about priority or
+	// inheritance. Layers carry no heading either: the prompt must not reveal
+	// the profile id, its scope or the fact that a base profile was inherited.
+	// Order plus a blank line is enough to keep them apart.
 	for (const layer of profile.layers) {
 		parts.push(layer.content, "");
 	}
