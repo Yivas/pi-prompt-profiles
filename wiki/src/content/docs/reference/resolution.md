@@ -46,7 +46,8 @@ permissions.
 
 ## Composition
 
-The specific profile is emitted first, then its bases. The extension writes no heading, id or scope into the prompt,
+The specific profile is emitted first, then its bases; where they conflict, the
+specific one wins. The extension writes no heading, id or scope into the prompt,
 so the block carries no identifier for the active profile. This is prompt text:
 it does not create a privileged message type at the API level.
 

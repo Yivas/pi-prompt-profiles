@@ -114,11 +114,11 @@ permissions.
 2. prepends exactly one managed block;
 3. returns the result as `systemPrompt`, which Pi uses for that turn.
 
-The block emits the specific profile and its bases, separated only by blank lines: the extension
-writes no heading, id or scope into the prompt, so the block carries no
-identifier for the active profile and no statement about priority. This is
-prompt text, and it does not create a privileged message type at the API
-level.
+The block emits the specific profile and its bases, separated only by blank
+lines: the extension writes no heading, id or scope into the prompt, so the
+block carries no identifier for the active profile and no statement about
+priority. This is prompt text, and it does not create a privileged message type
+at the API level.
 
 Composition is idempotent and stable: the same selection and content produce
 byte-identical text, with no timestamps, random ids or diagnostics inside the

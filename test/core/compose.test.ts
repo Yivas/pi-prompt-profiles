@@ -76,6 +76,24 @@ describe("applyManagedPrompt", () => {
 		expect(cleared).toContain("BASE PROMPT");
 	});
 
+	it("pins the marker format and strips a block written by 0.9.x", () => {
+		expect(MANAGED_BEGIN).toBe("<!-- system-instructions:begin v1 -->");
+		expect(MANAGED_END).toBe("<!-- system-instructions:end -->");
+		const legacy = `${MANAGED_BEGIN}
+## System instructions
+
+OLD
+
+${MANAGED_END}
+
+NATIVE`;
+		const result = applyManagedPrompt(legacy, profile);
+		expect(result.stripped).toBe(1);
+		expect(result.systemPrompt.split(MANAGED_BEGIN)).toHaveLength(2);
+		expect(result.systemPrompt).not.toContain("OLD");
+		expect(result.systemPrompt.endsWith("NATIVE")).toBe(true);
+	});
+
 	it("leaves markers that are not our leading block", () => {
 		const base = `INTRO\n${MANAGED_BEGIN}\nquoted docs\n${MANAGED_END}\nNATIVE`;
 		const stripped = stripManagedBlocks(base);
