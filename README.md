@@ -6,7 +6,7 @@ written in Markdown and switched without restarting Pi.
 [![npm version](https://img.shields.io/npm/v/pi-prompt-profiles.svg)](https://www.npmjs.com/package/pi-prompt-profiles)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Version `0.10.0`, verified against Pi `0.85.1`.
+Version `0.11.0`, verified offline against Pi `0.85.1` and `1.4.0`.
 
 [Website](https://yivas.github.io/pi-prompt-profiles/) · [Install](#install) · [Command reference](https://yivas.github.io/pi-prompt-profiles/reference/commands/) · [Releases](https://github.com/Yivas/pi-prompt-profiles/releases) · [Contributing](https://github.com/Yivas/pi-prompt-profiles/blob/main/CONTRIBUTING.md)
 
@@ -25,10 +25,10 @@ family. It does not choose the model, change the provider, or route execution.
 
 ## Status
 
-- Version `0.10.0`. First public release `0.1.0`.
+- Version `0.11.0`. First public release `0.1.0`.
 - Published on npm as [`pi-prompt-profiles`](https://www.npmjs.com/package/pi-prompt-profiles).
-- Release `0.10.0` was verified against Pi **0.85.1**. The unreleased checkout
-  also tests **1.4.0**, with the cache and coexistence limits described below.
+- Verified offline against Pi **0.85.1** and **1.4.0**, with the cache and
+  coexistence limits described below.
   See [docs/compatibility.md](docs/compatibility.md) for the exact contracts.
 
 ## Requirements
@@ -39,13 +39,13 @@ family. It does not choose the model, change the provider, or route execution.
 ## Install
 
 ```bash
-pi install npm:pi-prompt-profiles
+pi install npm:pi-prompt-profiles@0.11.0
 ```
 
 Load it for a single run without changing your settings:
 
 ```bash
-pi -e npm:pi-prompt-profiles
+pi -e npm:pi-prompt-profiles@0.11.0
 ```
 
 From a local checkout instead:
@@ -164,7 +164,7 @@ runs no commands from profile text, and sends no telemetry. `/sp preview` and
   extension never sets `customPrompt`, so native tool and documentation
   instructions are not dropped.
 - `AGENTS.md` context and skills are preserved and stay below the managed block.
-- In the unreleased Pi 1.4+ path, the profile is prepended to each request's
+- In the Pi 1.4+ path, the profile is prepended to each request's
   structured system header instead of forcing a complete prompt replacement.
   Pi can retain its native deltas when tools are added; this is not a promise
   of cache hits for every provider.

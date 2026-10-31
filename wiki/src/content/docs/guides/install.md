@@ -5,7 +5,7 @@ description: Load pi-prompt-profiles in Pi, locally or as a package.
 
 ## Requirements
 
-- Pi, verified against `@earendil-works/pi-coding-agent` 0.85.1.
+- Pi, verified offline against `@earendil-works/pi-coding-agent` 0.85.1 and 1.4.0.
 - Node.js 22.19 or newer if you build from source.
 
 ## Try it without installing
@@ -24,7 +24,7 @@ modified.
 From npm:
 
 ```bash
-pi install npm:pi-prompt-profiles
+pi install npm:pi-prompt-profiles@0.11.0
 ```
 
 From a local checkout:

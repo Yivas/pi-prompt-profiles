@@ -3,8 +3,8 @@ title: Compatibility
 description: Verified Pi contracts, the supported version and known limits.
 ---
 
-Release 0.10.0 was verified against Pi **0.85.1**. The unreleased checkout also
-has an offline transport matrix for **1.4.0**; other versions are unverified. The full audit, with file references, is in
+Version 0.11.0 has an offline transport matrix for Pi **0.85.1** and **1.4.0**;
+other versions are unverified. The full audit, with file references, is in
 [`docs/compatibility.md`](https://github.com/Yivas/pi-prompt-profiles/blob/main/docs/compatibility.md).
 
 ## Contracts used
@@ -32,7 +32,7 @@ On Pi 0.85.1 the extension returns a complete `systemPrompt` from
 preserve deltas that Pi itself does not provide; `forceSystemPrompt` does not
 exist in that version.
 
-The unreleased Pi 1.4+ path freezes the block before the run and prepends it
+The Pi 1.4+ path freezes the block before the run and prepends it
 through `context_with_system`. It preserves native sections, tool declarations
 and later updates without writing the profile to the transcript. It never sets
 `customPrompt`, which would drop native tool and documentation instructions.

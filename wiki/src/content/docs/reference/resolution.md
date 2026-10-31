@@ -54,7 +54,7 @@ it does not create a privileged message type at the API level.
 Composition is idempotent: the extension removes its own leading block and
 prepends exactly one, so the prompt never accumulates duplicates.
 
-In the unreleased Pi 1.4+ path, the block is frozen at the start of a run and
+In the Pi 1.4+ path, the block is frozen at the start of a run and
 prepended through `context_with_system` for each request. Native sections and
 tool updates stay intact, and the block is not persisted in the transcript.
 Off removes it on the next run. Legacy Pi, including 0.85.1, still uses a

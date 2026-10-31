@@ -1,7 +1,7 @@
 # Compatibility
 
 This document records the Pi contracts this extension depends on. It is not a
-summary of upstream `main`. The original audit covered 0.85.1; the unreleased
+summary of upstream `main`. The original audit covered 0.85.1; the 0.11.0
 prompt-cache change was also tested against an existing Pi 1.4.0 installation.
 
 ## Verified environment
@@ -28,8 +28,8 @@ Source files read in full and used as the ground truth:
 - `dist/core/agent-session.js`, `dist/core/sdk.js`
 - `node_modules/@earendil-works/pi-ai/dist/types.d.ts`
 
-Minimum supported version remains **0.85.1**. The unreleased checkout also has
-an offline integration matrix for **1.4.0**. Other versions are not verified.
+Minimum supported version remains **0.85.1**. Version 0.11.0 also has an offline
+integration matrix for **1.4.0**. Other versions are not verified.
 
 | Pi | Injection | Cache boundary |
 | --- | --- | --- |
