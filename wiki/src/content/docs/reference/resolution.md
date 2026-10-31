@@ -54,6 +54,17 @@ it does not create a privileged message type at the API level.
 Composition is idempotent: the extension removes its own leading block and
 prepends exactly one, so the prompt never accumulates duplicates.
 
+In the unreleased Pi 1.4+ path, the block is frozen at the start of a run and
+prepended through `context_with_system` for each request. Native sections and
+tool updates stay intact, and the block is not persisted in the transcript.
+Off removes it on the next run. Legacy Pi, including 0.85.1, still uses a
+complete prompt return and does not gain native delta preservation.
+
+Another extension returning a complete `systemPrompt` can discard the modern
+projection in either load order, including when it only appends text. The
+extension warns if the frozen block is missing from a recognized payload.
+Structured section contributions can coexist without that replacement.
+
 ## Subagents
 
 A subagent is its own session, so it resolves from the config, not from the
@@ -68,8 +79,10 @@ extensions never sees the block at all.
 Three different things are reported separately by `/sp status`:
 
 - the pending selection;
-- the prompt composed in `before_agent_start`;
+- the profile block frozen in `before_agent_start`;
 - the payload observed read-only in `before_provider_request`.
 
-See [Compatibility](../compatibility/) for what the last one can and
-cannot prove.
+The footer reports `not in payload` when a recognized request lacks the block,
+or `payload unverified` when its format cannot be checked. Neither selection
+nor an estimate proves delivery. See [Compatibility](../compatibility/) for
+what the observation can and cannot prove.

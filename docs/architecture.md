@@ -21,11 +21,13 @@ session_start ──▶ Runtime.ensure ──▶ loadState (global + trusted pro
 model_select ───────────┼──▶ invalidate cache
 session_tree ───────────┼──▶ restore selection from the active branch
                         │
-before_agent_start ─────┴──▶ resolveProfile ──▶ applyManagedPrompt
+before_agent_start ─────┴──▶ resolveProfile ──▶ freeze managed block
                                               │
-                                              └──▶ return { systemPrompt }
+context_with_system ───────────────────────────┴──▶ prepend to request header (Pi 1.4+)
 
-before_provider_request ──▶ observe(payload)   (read-only)
+before_provider_request ──▶ observe(payload), warn if missing (read-only)
+
+Legacy Pi: before_agent_start ──▶ applyManagedPrompt ──▶ { systemPrompt }
 ```
 
 ## On-disk layout
@@ -108,11 +110,19 @@ permissions.
 
 ## Composition
 
-`before_agent_start` receives the chained `event.systemPrompt`. The extension:
-1. removes every block it previously emitted (matched by an unambiguous begin
-   and end marker);
-2. prepends exactly one managed block;
-3. returns the result as `systemPrompt`, which Pi uses for that turn.
+`src/adapter/prompt.ts` freezes the resolved block in `before_agent_start`.
+On Pi 1.4+, `context_with_system` prepends that block to the leading system
+message for each request. It keeps the header's sections and tool declarations,
+all later system updates, and the conversation intact. The projection is
+request-local: it never writes the block into session history or forces the
+complete prompt. The profile stays fixed during the run while Pi can update
+its native tool instructions.
+
+On legacy Pi, including the verified 0.85.1, the extension still prepends to the
+chained `event.systemPrompt` and returns the complete string. That API has no
+system-section deltas; adding tools can invalidate the native prefix as well.
+The version branch uses Pi's public `VERSION` export; registering an unknown
+hook would not prove that legacy Pi emits it.
 
 The block emits the specific profile and its bases, separated only by blank
 lines: the extension writes no heading, id or scope into the prompt, so the
@@ -124,8 +134,11 @@ Composition is idempotent and stable: the same selection and content produce
 byte-identical text, with no timestamps, random ids or diagnostics inside the
 prompt. Hashes are computed for diagnostics only and never injected.
 
-`off` returns control to Pi by returning no `systemPrompt`, so Pi restores its
-base prompt. No copy of the profile is written to the conversation.
+`off` or no matching profile clears the frozen block on the next run. The
+modern projection also removes an older leading managed block if present,
+without changing the stored transcript. Legacy Pi restores its base prompt
+when no `systemPrompt` is returned. No copy of the profile is written to the
+conversation.
 
 ## Observation versus truth
 
@@ -135,10 +148,18 @@ Three different things are kept apart in the code and reported separately:
 - the prompt composed in `before_agent_start`;
 - the payload observed in `before_provider_request`.
 
-`before_provider_request` is used read-only to record whether the managed block
-is still present. It never rewrites the payload, so the extension cannot fight
-another extension or hide a failure. `/sp preview` labels these as a previous
-estimate and a last observation, not as a final capture.
+`before_provider_request` checks for the frozen block, not just any marker.
+It never rewrites the payload. If a recognized payload lacks the block, it
+warns once per run and the footer reports `not in payload`; an unrecognized
+format reports `payload unverified` instead. A selected profile is not proof
+that it reached the model. `/sp preview` remains an estimate plus the last
+observation, not a final capture.
+
+In modern Pi, another extension returning `systemPrompt` (even unchanged or
+only appended) causes a later forced-prompt projection to discard this
+extension's request-local prepend, in either load order. The warning exposes
+that incompatibility; the extension does not rewrite the foreign override.
+Extensions contributing structured sections can coexist without that force.
 
 ## Caching and lifecycle
 

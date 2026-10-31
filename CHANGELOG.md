@@ -5,6 +5,25 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project follows the `0.y.z` convention used by its author: `PATCH` for
 compatible fixes, `MINOR` for features or breaking changes.
 
+## Unreleased
+
+### Fixed
+
+- On Pi 1.4+, prepend the frozen profile through the request-local system
+  transcript instead of returning a complete prompt. Adding tools no longer
+  forces the extra header reconstruction caused by this extension. Native
+  sections and updates remain intact; this does not guarantee provider cache
+  hits. Pi 0.85.1 keeps its legacy path and minimum support is unchanged.
+
+### Changed
+
+- On the modern path, another extension returning a complete `systemPrompt`
+  can remove the profile in either load order, even when it only appends text.
+  This is a coexistence incompatibility. A missing frozen block now produces
+  a warning once per run and `not in payload` in the footer. Unrecognized
+  formats report `payload unverified`; payloads are never rewritten to repair
+  another extension's override.
+
 ## 0.10.0 - 2026-10-17
 
 ### Removed

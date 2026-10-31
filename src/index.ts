@@ -5,6 +5,7 @@ import {
 	getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import { registerCommands } from "./adapter/commands.js";
+import { registerPromptHooks } from "./adapter/prompt.js";
 import { messageOf, Runtime } from "./adapter/runtime.js";
 import type { Selection } from "./core/types.js";
 
@@ -125,36 +126,7 @@ export default function piPromptProfiles(pi: ExtensionAPI): void {
 		}
 	});
 
-	pi.on("before_agent_start", async (event, ctx) => {
-		try {
-			runtime.ensure(ctx);
-			const { resolution, systemPrompt } = runtime.compose(
-				event.systemPrompt,
-				ctx,
-			);
-			if (!systemPrompt) {
-				runtime.markApplied(ctx, undefined);
-				runtime.updateStatus(ctx);
-				return undefined;
-			}
-			runtime.markApplied(ctx, resolution.profile?.layers[0]?.hash);
-			runtime.updateStatus(ctx);
-			return { systemPrompt };
-		} catch (cause) {
-			ctx.ui.notify(
-				`pi-prompt-profiles: ${messageOf(cause)}; Pi keeps its native prompt.`,
-				"error",
-			);
-			return undefined;
-		}
-	});
-
-	pi.on("before_provider_request", async (event) => {
-		// Observation only: the extension never rewrites provider payloads, so
-		// it cannot fight another extension and cannot hide its own failures.
-		runtime.observe(event.payload);
-		return undefined;
-	});
+	registerPromptHooks(pi, runtime);
 
 	pi.on("session_shutdown", async () => {
 		runtime.reload();

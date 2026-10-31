@@ -88,16 +88,18 @@ export function extractSystemText(payload: unknown): string | undefined {
 	if (!isRecord(payload)) {
 		return undefined;
 	}
-	const system = payload.system;
-	if (typeof system === "string") {
-		return system;
+	const parts: string[] = [];
+	for (const field of [payload.system, payload.instructions]) {
+		if (typeof field === "string") {
+			parts.push(field);
+		} else if (Array.isArray(field)) {
+			parts.push(field.map(partText).filter(Boolean).join("\n"));
+		}
 	}
-	if (Array.isArray(system)) {
-		return system.map(partText).filter(Boolean).join("\n");
-	}
-	const messages = payload.messages;
-	if (Array.isArray(messages)) {
-		const parts: string[] = [];
+	for (const messages of [payload.messages, payload.input]) {
+		if (!Array.isArray(messages)) {
+			continue;
+		}
 		for (const message of messages) {
 			if (!isRecord(message)) {
 				continue;
@@ -114,11 +116,8 @@ export function extractSystemText(payload: unknown): string | undefined {
 				}
 			}
 		}
-		if (parts.length > 0) {
-			return parts.join("\n\n");
-		}
 	}
-	return undefined;
+	return parts.length > 0 ? parts.filter(Boolean).join("\n\n") : undefined;
 }
 
 export class Runtime {
@@ -311,12 +310,12 @@ export class Runtime {
 		return { resolution, systemPrompt: composed.systemPrompt };
 	}
 
-	observe(payload: unknown): void {
+	observe(payload: unknown, expectedBlock?: string): void {
 		const system = extractSystemText(payload);
 		this.observed = {
 			at: Date.now(),
 			systemFound: system !== undefined,
-			blockPresent: system?.includes(MANAGED_BEGIN) ?? false,
+			blockPresent: system?.includes(expectedBlock ?? MANAGED_BEGIN) ?? false,
 			note:
 				system === undefined
 					? "No system text was recognized in this provider payload."
@@ -343,8 +342,14 @@ export class Runtime {
 		if (resolution?.mode === "off") {
 			text = "SP: off";
 		} else if (resolution?.profile) {
-			const pending = this.isPending(ctx) ? " · next run" : "";
-			text = `SP: ${resolution.profile.ref.id} [${this.selection.mode}]${pending}`;
+			const pending = this.isPending(ctx);
+			const observation =
+				this.applied?.hash && this.observed && !this.observed.blockPresent
+					? this.observed.systemFound
+						? " · not in payload"
+						: " · payload unverified"
+					: "";
+			text = `SP: ${resolution.profile.ref.id} [${this.selection.mode}]${pending ? " · next run" : observation}`;
 		} else if (this.selection.mode === "manual") {
 			text = "SP: manual (unresolved)";
 		} else {

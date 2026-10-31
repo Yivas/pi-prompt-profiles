@@ -1,8 +1,8 @@
 # Compatibility
 
 This document records the Pi contracts this extension depends on. It is not a
-summary of the upstream `main` branch: it reflects the installed version that
-was read and tested on 2026-09-18.
+summary of upstream `main`. The original audit covered 0.85.1; the unreleased
+prompt-cache change was also tested against an existing Pi 1.4.0 installation.
 
 ## Verified environment
 
@@ -28,8 +28,29 @@ Source files read in full and used as the ground truth:
 - `dist/core/agent-session.js`, `dist/core/sdk.js`
 - `node_modules/@earendil-works/pi-ai/dist/types.d.ts`
 
-Minimum supported version: **0.85.1**, the only version in the test matrix. No
-other version is claimed to work.
+Minimum supported version remains **0.85.1**. The unreleased checkout also has
+an offline integration matrix for **1.4.0**. Other versions are not verified.
+
+| Pi | Injection | Cache boundary |
+| --- | --- | --- |
+| 0.85.1 | Complete `systemPrompt` return, legacy behavior | Tool changes can rebuild the native prefix too; no delta-preservation claim |
+| 1.4.0 | Request-local `context_with_system` prepend | Native header preserved when Anthropic's intermediate-system/tool capabilities are enabled; normal native fallback otherwise |
+
+The modern hook is registered from 1.4 onward using the public `VERSION`
+export. That version check is not a compatibility test of every later release.
+The transport matrix uses real loading, AgentSession and serialization, captures
+`onPayload` before sending, and supplies synthetic responses. It verifies
+payload structure, not cache hits, billing or quota. No API key is required.
+Run only that file with:
+
+```bash
+npx vitest run test/integration/prompt-cache.test.ts --maxWorkers=1 --no-file-parallelism
+```
+
+Set `PPP_TEST_PI_PACKAGE` to the root of another existing Pi package to repeat
+the matrix without replacing the project's dependencies. Tests cover native,
+off, active, tool additions, run-local freezing, selection/reload, resume and
+foreign complete-prompt handlers.
 
 ## Extension loading
 
@@ -56,7 +77,8 @@ Registered through `pi.on("<name>", handler)`.
 | `session_start` | load disk state, restore or apply selection, report errors | event has `reason: "startup" \| "reload" \| "new" \| "resume" \| "fork"` |
 | `session_tree` | restore selection from the active branch | fires after `/tree`; branch-based restore is correct |
 | `model_select` | invalidate the cached resolution | event has `model`, `previousModel`, `source: "set" \| "cycle" \| "restore"` |
-| `before_agent_start` | prepend the managed block | see below |
+| `before_agent_start` | freeze the block; legacy prepend | see below |
+| `context_with_system` (1.4+) | prepend to the request-local system header | keep sections, tool declarations and later updates |
 | `before_provider_request` | observe the payload, never rewrite it | handlers run in extension load order; returning `undefined` keeps the payload |
 | `session_shutdown` | drop cached state | reason `quit \| reload \| new \| resume \| fork` |
 
@@ -64,6 +86,8 @@ There is no `model_change` hook; that name is a session entry type. The model
 hook is `model_select`.
 
 ## System prompt
+
+### Legacy Pi (verified 0.85.1)
 
 `buildSystemPrompt(options)` (`dist/core/system-prompt.js`) is the composition
 point:
@@ -92,6 +116,23 @@ point:
 **`forceSystemPrompt` does not exist** in this version. It was checked in
 `BeforeAgentStartEventResult`, `BuildSystemPromptOptions` and the extension
 docs. The extension does not depend on it.
+
+### Structured transcript (verified 1.4.0)
+
+`before_agent_start` freezes only the profile block and returns no prompt
+replacement. `context_with_system` receives a request-local transcript including
+system messages; the adapter prepends to the header's `content`, retaining its
+`sections`, tools and every later message. Pi's stored transcript remains
+unchanged. Off clears that projection on the next run, including after resume.
+
+Pi applies a foreign `forceSystemPrompt` after this hook. Any extension returning
+`systemPrompt` can therefore remove the profile, even when it only appends text
+or returns the same value, regardless of load order. Section-based extensions
+do not activate that projection. The adapter warns once per run when the frozen
+block is absent from a recognized payload, or reports an unverified format.
+It does not restore the profile by mutating provider payloads.
+
+### Payload observation
 
 `before_provider_request` (`BeforeProviderRequestEvent`) receives an untyped
 `{ payload }`. The payload is built by the provider adapter and its schema is
@@ -172,10 +213,11 @@ treated as a child.
 
 ## Known limits
 
-- There is no priority field on events. Handler order is load order. If a later
-  extension returns a full replacement `systemPrompt`, the managed block is
-  gone; the integration test documents this case. Any extension that prepends or
-  appends keeps the block.
+- There is no priority field on events. On legacy Pi, a later full replacement
+  can discard the block; appenders preserve it. On Pi 1.4+, any complete-prompt
+  handler can discard the block in either order, including an appender. This
+  is an explicit incompatibility of the cache-preserving path, with a payload
+  warning rather than a silent claim of application.
 - The extension cannot guarantee that a provider adapter serializes the block in
   a particular field, and cannot stop a provider from ignoring a system message.
 - `before_agent_start` runs per prompt, so the profile is frozen for the run.
