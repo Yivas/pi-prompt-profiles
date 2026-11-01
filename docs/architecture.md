@@ -21,13 +21,9 @@ session_start ──▶ Runtime.ensure ──▶ loadState (global + trusted pro
 model_select ───────────┼──▶ invalidate cache
 session_tree ───────────┼──▶ restore selection from the active branch
                         │
-before_agent_start ─────┴──▶ resolveProfile ──▶ freeze managed block
-                                              │
-context_with_system ───────────────────────────┴──▶ prepend to request header (Pi 1.4+)
+before_agent_start ─────┴──▶ resolveProfile ──▶ applyManagedPrompt ──▶ { systemPrompt }
 
 before_provider_request ──▶ observe(payload), warn if missing (read-only)
-
-Legacy Pi: before_agent_start ──▶ applyManagedPrompt ──▶ { systemPrompt }
 ```
 
 ## On-disk layout
@@ -110,19 +106,28 @@ permissions.
 
 ## Composition
 
-`src/adapter/prompt.ts` freezes the resolved block in `before_agent_start`.
-On Pi 1.4+, `context_with_system` prepends that block to the leading system
-message for each request. It keeps the header's sections and tool declarations,
-all later system updates, and the conversation intact. The projection is
-request-local: it never writes the block into session history or forces the
-complete prompt. The profile stays fixed during the run while Pi can update
-its native tool instructions.
+`src/adapter/prompt.ts` resolves the profile once in `before_agent_start`,
+composes the prompt with `applyManagedPrompt` and returns it as `systemPrompt`.
+The same resolution supplies the block that `before_provider_request` later
+looks for, so the prompt and the check cannot disagree.
 
-On legacy Pi, including the verified 0.85.1, the extension still prepends to the
-chained `event.systemPrompt` and returns the complete string. That API has no
-system-section deltas; adding tools can invalidate the native prefix as well.
-The version branch uses Pi's public `VERSION` export; registering an unknown
-hook would not prove that legacy Pi emits it.
+The prompt survives Pi's forced-prompt projection, which applies the last value
+as the request's system message after every hook and would discard a
+request-local projection. Extensions that build on `event.systemPrompt` chain,
+so the block stays single in either load order; a later handler returning an
+independent replacement can still drop it, and the read-only check reports
+that. Composition is idempotent: a leading managed block in `event.systemPrompt`
+is removed before exactly one is prepended, which keeps the block single when an
+appending extension ran first.
+
+While a profile is active the request carries a complete prompt. Pi does not
+apply its native system-section deltas to a forced prompt: adding tools during a
+run rebuilds the header, prompt snippets and guidelines of a tool activated
+mid-run are absent until the next run, and a structured section contributed by
+an extension that runs after this handler is not part of that run's prompt. With
+no profile selected nothing is returned and Pi keeps its own prompt and deltas.
+The trade is deliberate: a request-local prepend preserved more of Pi's own
+prompt but was discarded whenever another extension returned a complete one.
 
 The block emits the specific profile and its bases, separated only by blank
 lines: the extension writes no heading, id or scope into the prompt, so the
@@ -134,11 +139,13 @@ Composition is idempotent and stable: the same selection and content produce
 byte-identical text, with no timestamps, random ids or diagnostics inside the
 prompt. Hashes are computed for diagnostics only and never injected.
 
-`off` or no matching profile clears the frozen block on the next run. The
-modern projection also removes an older leading managed block if present,
-without changing the stored transcript. Legacy Pi restores its base prompt
-when no `systemPrompt` is returned. No copy of the profile is written to the
-conversation.
+`off` or no matching profile returns no prompt, so Pi keeps its own. If the
+incoming prompt still carries a leading managed block, for example because
+another extension re-injected an earlier one, the stripped prompt is returned
+instead. On 1.4+ the forced prompt is projected onto the request and never
+written to the session history; on 0.85.1 the override lives in the agent state
+for the turn and is not persisted either. No copy of the profile is written to
+the conversation.
 
 ## Observation versus truth
 
@@ -148,18 +155,17 @@ Three different things are kept apart in the code and reported separately:
 - the prompt composed in `before_agent_start`;
 - the payload observed in `before_provider_request`.
 
-`before_provider_request` checks for the frozen block, not just any marker.
+`before_provider_request` checks for the managed block, not just any marker.
 It never rewrites the payload. If a recognized payload lacks the block, it
 warns once per run and the footer reports `not in payload`; an unrecognized
 format reports `payload unverified` instead. A selected profile is not proof
 that it reached the model. `/sp preview` remains an estimate plus the last
 observation, not a final capture.
 
-In modern Pi, another extension returning `systemPrompt` (even unchanged or
-only appended) causes a later forced-prompt projection to discard this
-extension's request-local prepend, in either load order. The warning exposes
-that incompatibility; the extension does not rewrite the foreign override.
-Extensions contributing structured sections can coexist without that force.
+The warning names the likely cause instead of assuming a failure: another
+extension may have replaced the complete system prompt after this handler ran.
+The extension reports that observation and does not rewrite the payload to
+compete with the other extension.
 
 ## Caching and lifecycle
 

@@ -1,8 +1,8 @@
 # Compatibility
 
 This document records the Pi contracts this extension depends on. It is not a
-summary of upstream `main`. The original audit covered 0.85.1; the 0.11.0
-prompt-cache change was also tested against an existing Pi 1.4.0 installation.
+summary of upstream `main`. The original audit covered 0.85.1; the prompt
+delivery path was also tested against an existing Pi 1.4.0 installation.
 
 ## Verified environment
 
@@ -33,12 +33,11 @@ integration matrix for **1.4.0**. Other versions are not verified.
 
 | Pi | Injection | Cache boundary |
 | --- | --- | --- |
-| 0.85.1 | Complete `systemPrompt` return, legacy behavior | Tool changes can rebuild the native prefix too; no delta-preservation claim |
-| 1.4.0 | Request-local `context_with_system` prepend | Native header preserved when Anthropic's intermediate-system/tool capabilities are enabled; normal native fallback otherwise |
+| 0.85.1 | Complete `systemPrompt` return, used as the turn's prompt | Tool changes can rebuild the native prefix; no delta-preservation claim |
+| 1.4.0 | Complete `systemPrompt` return, projected as the request's system message | Same: a forced prompt carries no sections, so tool changes rebuild the header while a profile is active |
 
-The modern hook is registered from 1.4 onward using the public `VERSION`
-export. That version check is not a compatibility test of every later release.
-The transport matrix uses real loading, AgentSession and serialization, captures
+The extension registers the same hooks on every supported version and does not
+read `VERSION` to branch behavior. The transport matrix uses real loading, AgentSession and serialization, captures
 `onPayload` before sending, and supplies synthetic responses. It verifies
 payload structure, not cache hits, billing or quota. No API key is required.
 Run only that file with:
@@ -77,8 +76,7 @@ Registered through `pi.on("<name>", handler)`.
 | `session_start` | load disk state, restore or apply selection, report errors | event has `reason: "startup" \| "reload" \| "new" \| "resume" \| "fork"` |
 | `session_tree` | restore selection from the active branch | fires after `/tree`; branch-based restore is correct |
 | `model_select` | invalidate the cached resolution | event has `model`, `previousModel`, `source: "set" \| "cycle" \| "restore"` |
-| `before_agent_start` | freeze the block; legacy prepend | see below |
-| `context_with_system` (1.4+) | prepend to the request-local system header | keep sections, tool declarations and later updates |
+| `before_agent_start` | resolve the profile and return the complete prompt | see below |
 | `before_provider_request` | observe the payload, never rewrite it | handlers run in extension load order; returning `undefined` keeps the payload |
 | `session_shutdown` | drop cached state | reason `quit \| reload \| new \| resume \| fork` |
 
@@ -117,20 +115,23 @@ point:
 `BeforeAgentStartEventResult`, `BuildSystemPromptOptions` and the extension
 docs. The extension does not depend on it.
 
-### Structured transcript (verified 1.4.0)
+### Complete prompt return (all versions)
 
-`before_agent_start` freezes only the profile block and returns no prompt
-replacement. `context_with_system` receives a request-local transcript including
-system messages; the adapter prepends to the header's `content`, retaining its
-`sections`, tools and every later message. Pi's stored transcript remains
-unchanged. Off clears that projection on the next run, including after resume.
+`before_agent_start` resolves the profile once, composes the prompt and returns
+`{ systemPrompt }`. Pi 0.85.1 assigns that string to the agent's prompt for the
+turn. Pi 1.4.0 records it as `forceSystemPrompt` and projects it as the request's
+single system message after every hook (`_installAgentForcedPromptProjection`),
+without writing it to the session transcript. The value is chained: each later
+handler receives the previous one as `event.systemPrompt`, and a managed block
+already present is stripped before exactly one is prepended.
 
-Pi applies a foreign `forceSystemPrompt` after this hook. Any extension returning
-`systemPrompt` can therefore remove the profile, even when it only appends text
-or returns the same value, regardless of load order. Section-based extensions
-do not activate that projection. The adapter warns once per run when the frozen
-block is absent from a recognized payload, or reports an unverified format.
-It does not restore the profile by mutating provider payloads.
+A forced prompt carries no sections, so while a profile is active Pi's native
+section deltas are not used: adding a tool mid-run rebuilds the system header,
+and a structured section contributed by an extension that runs after this
+handler is not part of that run's request. An extension that replaces the prompt
+after this one can still drop the block. The adapter warns once per run when the
+block is absent from a recognized payload, or reports an unverified format, and
+does not restore the profile by mutating provider payloads.
 
 ### Payload observation
 
@@ -213,11 +214,11 @@ treated as a child.
 
 ## Known limits
 
-- There is no priority field on events. On legacy Pi, a later full replacement
-  can discard the block; appenders preserve it. On Pi 1.4+, any complete-prompt
-  handler can discard the block in either order, including an appender. This
-  is an explicit incompatibility of the cache-preserving path, with a payload
-  warning rather than a silent claim of application.
+- There is no priority field on events. Appenders preserve the block in either
+  load order because the value is chained and recomposed. An extension that
+  returns its own complete prompt after this handler replaces the chained value
+  and can discard the block; the payload warning reports that rather than
+  claiming the profile was applied.
 - The extension cannot guarantee that a provider adapter serializes the block in
   a particular field, and cannot stop a provider from ignoring a system message.
 - `before_agent_start` runs per prompt, so the profile is frozen for the run.

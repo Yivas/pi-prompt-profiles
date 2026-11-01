@@ -32,9 +32,11 @@ that scope. Adjust `priority` or make one rule more specific.
 
 ## Another extension removes my block
 
-An extension that returns a full replacement `systemPrompt` after this one wins.
-There is no priority field on events. Use `/sp preview` and the last payload
-observation to confirm what happened.
+An extension that returns its own complete `systemPrompt` after this one,
+rather than appending to the value it received, replaces the prompt and can drop
+the block; appending extensions keep it in either load order. There is no
+priority field on events. Use `/sp preview` and the last payload observation to
+confirm what happened.
 
 ## Editing `config.json` fails
 

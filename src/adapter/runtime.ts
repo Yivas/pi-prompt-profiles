@@ -298,16 +298,27 @@ export class Runtime {
 		};
 	}
 
+	/**
+	 * Composes the prompt for a resolution that was already obtained, so the block
+	 * checked in the provider payload is the same one written into the prompt.
+	 * An absent `systemPrompt` means Pi's own prompt stays untouched.
+	 */
 	compose(
 		basePrompt: string,
-		ctx: ExtensionContext,
-	): { resolution: Resolution; systemPrompt?: string } {
-		const resolution = this.resolve(ctx);
-		if (resolution.mode === "off" || !resolution.profile) {
-			return { resolution };
+		resolution: Resolution,
+	): { systemPrompt: string | undefined; block: string | undefined } {
+		const profile = resolution.mode === "off" ? undefined : resolution.profile;
+		const composed = applyManagedPrompt(basePrompt, profile);
+		if (profile) {
+			return { systemPrompt: composed.systemPrompt, block: composed.block };
 		}
-		const composed = applyManagedPrompt(basePrompt, resolution.profile);
-		return { resolution, systemPrompt: composed.systemPrompt };
+		// Off or unresolved: a block left by an earlier run must not survive, but a
+		// prompt that carries none is returned unchanged.
+		const clearsPreviousBlock = composed.stripped > 0;
+		return {
+			systemPrompt: clearsPreviousBlock ? composed.systemPrompt : undefined,
+			block: undefined,
+		};
 	}
 
 	observe(payload: unknown, expectedBlock?: string): void {

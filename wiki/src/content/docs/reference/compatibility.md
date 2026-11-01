@@ -14,8 +14,7 @@ other versions are unverified. The full audit, with file references, is in
 | `session_start` | Load disk state, restore or apply the selection. |
 | `session_tree` | Restore the selection from the active branch. |
 | `model_select` | Invalidate the cached resolution. |
-| `before_agent_start` | Freeze the profile block; prepend the legacy prompt. |
-| `context_with_system` (1.4+) | Prepend to the request-local structured system header. |
+| `before_agent_start` | Resolve the profile and return the complete prompt. |
 | `before_provider_request` | Observe the payload; never rewrite it. |
 | `session_shutdown` | Drop cached state. |
 
@@ -27,15 +26,21 @@ touch private properties.
 
 ## System prompt
 
-On Pi 0.85.1 the extension returns a complete `systemPrompt` from
-`before_agent_start`, chained across extensions. This legacy path cannot
-preserve deltas that Pi itself does not provide; `forceSystemPrompt` does not
-exist in that version.
+The extension returns a complete `systemPrompt` from `before_agent_start` on
+every supported version, chained across extensions. Pi 0.85.1 uses it as the
+turn's prompt. Pi 1.4.0 records it as `forceSystemPrompt` and projects it as the
+request's system message after every hook, so another extension that appends to
+`event.systemPrompt` keeps the block in either load order. A leading managed
+block already present is removed before one is prepended, so the block appears
+once.
 
-The Pi 1.4+ path freezes the block before the run and prepends it
-through `context_with_system`. It preserves native sections, tool declarations
-and later updates without writing the profile to the transcript. It never sets
-`customPrompt`, which would drop native tool and documentation instructions.
+A forced prompt carries no sections: while a profile is active, adding a tool
+during a run rebuilds the system header, prompt snippets and guidelines of a
+tool activated mid-run are absent until the next run, and a structured section
+contributed by an extension that runs later is not part of that run's request.
+With no profile selected, Pi keeps its own prompt and deltas. The extension
+never sets `customPrompt`, which would drop native tool and documentation
+instructions.
 
 The offline Anthropic matrix compares native, off and active requests with and
 without intermediate-system/tool capabilities. It proves payload structure,
@@ -43,11 +48,10 @@ not real cache hits, quota or billing.
 
 ## Known limits
 
-- On Pi 1.4+, **any extension returning a complete `systemPrompt` can discard
-  the profile**, including an appender, in either load order. Pi applies that
-  forced replacement after the transcript hook. Use structured section
-  contributions to avoid it. On legacy Pi only a later full replacement has
-  that effect; appenders preserve the block.
+- Appenders keep the block in either load order. An extension that returns its
+  own complete `systemPrompt` after this one, instead of appending, replaces the
+  chained value and can discard the block. A recognized payload without the
+  block produces a warning and `not in payload` in the footer.
 - Provider adapters serialize the system prompt their own way. The extension
   observes the payload best-effort and does not impose a field.
 - The profile is frozen per prompt. A model change during an active run applies
@@ -69,5 +73,5 @@ options at a time.
 If the config is invalid, the version is unknown, a profile is missing or an
 inheritance chain is broken, the extension reports the problem and Pi keeps its
 native prompt. Selection is not proof of delivery: a recognized payload missing
-the frozen block produces a warning once per run and `not in payload` in the
+the managed block produces a warning once per run and `not in payload` in the
 footer. An unrecognized format reports `payload unverified`.

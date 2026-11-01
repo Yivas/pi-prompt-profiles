@@ -164,16 +164,23 @@ runs no commands from profile text, and sends no telemetry. `/sp preview` and
   extension never sets `customPrompt`, so native tool and documentation
   instructions are not dropped.
 - `AGENTS.md` context and skills are preserved and stay below the managed block.
-- In the Pi 1.4+ path, the profile is prepended to each request's
-  structured system header instead of forcing a complete prompt replacement.
-  Pi can retain its native deltas when tools are added; this is not a promise
-  of cache hits for every provider.
-- On that path, **any other extension returning a complete `systemPrompt` can
-  remove the profile**, even if it only appends text, in either load order.
-  A missing block produces a warning and `not in payload` in the footer;
-  an unrecognized format reports `payload unverified`. Prefer extensions that
-  contribute structured prompt sections. On legacy Pi, appenders still keep
-  the block, but a later full replacement can discard it.
+- The profile is delivered by returning the complete prompt from
+  `before_agent_start`, composed from whatever Pi and earlier extensions
+  produced. A managed block already present is removed before exactly one is
+  prepended, so another extension that appends to `event.systemPrompt` keeps the
+  block in either load order. An extension that returns its own prompt after
+  this one replaces the chained value and can still drop the block; the warning
+  reports it.
+- While a profile is active, the request carries a complete prompt, so Pi cannot
+  apply its native system-section deltas to it: adding a tool during a run
+  rebuilds the system header, and prompt snippets and guidelines of a tool
+  activated mid-run are absent until the next run. A structured section
+  contributed by an extension that runs later is not part of that run's prompt
+  either. With no profile selected, Pi keeps its own prompt and deltas. Cache
+  hits are a provider concern either way.
+- Delivery is observed, not assumed: a recognized payload without the block
+  produces a warning and `not in payload` in the footer, and an unrecognized
+  format reports `payload unverified`.
 
 ## Errors and degraded mode
 

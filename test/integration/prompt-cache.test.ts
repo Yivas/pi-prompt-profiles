@@ -67,7 +67,7 @@ async function harness(
 	options: {
 		mode?: "native" | "off" | "active";
 		deltas?: boolean;
-		foreign?: "first" | "last" | "sections";
+		foreign?: "first" | "last" | "sections" | "stale";
 		switchDuringRun?: boolean;
 		retry?: boolean;
 		persistent?: boolean;
@@ -112,7 +112,11 @@ async function harness(
 						).sections = { synthetic_style: "SYNTHETIC STYLE" };
 						return undefined;
 					}
-					return { systemPrompt: `${event.systemPrompt}\nFOREIGN APPEND` };
+					if (options.foreign === "stale")
+						return {
+							systemPrompt: `${MANAGED_BEGIN}\n\nSTALE PROFILE\n\n${MANAGED_END}\n\n${event.systemPrompt}`,
+						};
+					return { systemPrompt: `${event.systemPrompt}\n\nFOREIGN APPEND` };
 				});
 			},
 			cwd,
@@ -120,8 +124,8 @@ async function harness(
 			loaded.runtime,
 			"<inline:foreign>",
 		);
-		if (options.foreign === "first") loaded.extensions.unshift(foreign);
-		else loaded.extensions.push(foreign);
+		if (options.foreign === "last") loaded.extensions.push(foreign);
+		else loaded.extensions.unshift(foreign);
 	}
 	const resourceLoader = {
 		getExtensions: () => loaded,
@@ -325,7 +329,7 @@ describe(`prompt cache through Pi ${sdk.VERSION}, real session and serializer`, 
 		expect(extractSystemText({ unknown: "instructions" })).toBeUndefined();
 	});
 	it.each([true, false])(
-		"adds no header recomposition beyond native behavior (deltas=%s)",
+		"sends a complete prompt only while a profile is active (deltas=%s)",
 		async (deltas) => {
 			for (const mode of ["native", "off", "active"] as const) {
 				const h = await harness({ mode, deltas });
@@ -334,7 +338,10 @@ describe(`prompt cache through Pi ${sdk.VERSION}, real session and serializer`, 
 				h.session.setActiveToolsByName(["read", "switch_state", "lookup"]);
 				await h.session.prompt("AFTER ADD");
 				expect(header(h.captures[1])).toEqual(header(h.captures[0]));
-				if (modern && deltas)
+				// A provider without native deltas rebuilds the header when tools change.
+				// An active profile always rebuilds it: the extension returns the complete
+				// prompt, which replaces the header instead of patching its sections.
+				if (modern && deltas && mode !== "active")
 					expect(header(h.captures[2])).toEqual(header(h.captures[0]));
 				else expect(header(h.captures[2])).not.toEqual(header(h.captures[0]));
 				expect(text(h.captures[2])).toContain("NEW TOOL SNIPPET");
@@ -344,10 +351,10 @@ describe(`prompt cache through Pi ${sdk.VERSION}, real session and serializer`, 
 					expect(text(payload).split(MANAGED_BEGIN).length - 1).toBe(
 						mode === "active" ? 1 : 0,
 					);
-				if (modern)
-					expect(
-						JSON.stringify(h.session.sessionManager.getEntries()),
-					).not.toContain(MANAGED_BEGIN);
+				// The profile never enters the session history on any version.
+				expect(
+					JSON.stringify(h.session.sessionManager.getEntries()),
+				).not.toContain(MANAGED_BEGIN);
 				expect(h.errors).toEqual([]);
 				expect(h.network).not.toHaveBeenCalled();
 			}
@@ -364,9 +371,9 @@ describe(`prompt cache through Pi ${sdk.VERSION}, real session and serializer`, 
 			expect(text(payload)).not.toContain("EDITED PROFILE A");
 			expect(text(payload)).not.toContain("PROFILE B");
 		}
-		if (modern) expect(text(h.captures[1])).toContain("NEW TOOL RULE");
 		await h.session.prompt("NEXT");
 		expect(text(h.captures.at(-1))).toContain("PROFILE B");
+		expect(text(h.captures.at(-1))).toContain("NEW TOOL RULE");
 		await h.session.prompt("/sp off");
 		await h.session.prompt("OFF");
 		expect(text(h.captures.at(-1))).not.toContain(MANAGED_BEGIN);
@@ -379,33 +386,73 @@ describe(`prompt cache through Pi ${sdk.VERSION}, real session and serializer`, 
 	}, 30000);
 
 	it.each(["first", "last"] as const)(
-		"reports a foreign complete prompt in either load order (%s)",
+		"keeps one managed block when another extension returns a systemPrompt (%s)",
 		async (foreign) => {
-			const h = await harness({ foreign, switchDuringRun: true });
+			const h = await harness({ foreign });
 			await h.session.prompt("FIRST");
-			if (modern) {
-				for (const payload of h.captures)
-					expect(text(payload)).not.toContain(MANAGED_BEGIN);
-				expect(
-					h.notices.filter((notice) =>
-						notice.includes("missing from this request"),
-					),
-				).toHaveLength(1);
-				expect(
-					h.statuses.some((status) => status.includes("not in payload")),
-				).toBe(true);
-			} else {
-				for (const payload of h.captures)
-					expect(text(payload)).toContain(MANAGED_BEGIN);
-			}
+			expect(h.captures).toHaveLength(1);
+			const payload = text(h.captures[0]);
+			expect(payload.split(MANAGED_BEGIN)).toHaveLength(2);
+			expect(payload).toContain("PROFILE A");
+			expect(payload).toContain("FOREIGN APPEND");
+			expect(h.notices).toEqual([]);
+			expect(
+				h.statuses.some((status) => status.includes("not in payload")),
+			).toBe(false);
 			expect(h.errors).toEqual([]);
 			expect(h.network).not.toHaveBeenCalled();
 		},
 		30000,
 	);
 
+	it("keeps exactly one managed block across consecutive runs", async () => {
+		const h = await harness({ foreign: "first" });
+		await h.session.prompt("FIRST");
+		await h.session.prompt("SECOND");
+		await h.session.prompt("THIRD");
+		expect(h.captures).toHaveLength(3);
+		for (const payload of h.captures) {
+			expect(text(payload).split(MANAGED_BEGIN)).toHaveLength(2);
+			expect(text(payload)).toContain("FOREIGN APPEND");
+		}
+		expect(h.errors).toEqual([]);
+		expect(h.network).not.toHaveBeenCalled();
+	}, 30000);
+
+	it("leaves no managed block in the next run when the selection is off", async () => {
+		const h = await harness({ foreign: "last" });
+		await h.session.prompt("FIRST");
+		expect(text(h.captures[0]).split(MANAGED_BEGIN)).toHaveLength(2);
+		await h.session.prompt("/sp off");
+		await h.session.prompt("OFF");
+		const payload = text(h.captures.at(-1));
+		expect(payload).not.toContain(MANAGED_BEGIN);
+		expect(payload).not.toContain("PROFILE A");
+		expect(payload).toContain("FOREIGN APPEND");
+		// Pi keeps its native prompt once the profile is gone.
+		expect(payload).toContain("NATIVE CONTEXT");
+		expect(h.errors).toEqual([]);
+		expect(h.network).not.toHaveBeenCalled();
+	}, 30000);
+
+	it("replaces a stale managed block another extension returns", async () => {
+		const h = await harness({ foreign: "stale" });
+		await h.session.prompt("FIRST");
+		expect(text(h.captures[0]).split(MANAGED_BEGIN)).toHaveLength(2);
+		expect(text(h.captures[0])).toContain("PROFILE A");
+		expect(text(h.captures[0])).not.toContain("STALE PROFILE");
+		await h.session.prompt("/sp off");
+		await h.session.prompt("OFF");
+		const payload = text(h.captures.at(-1));
+		expect(payload).not.toContain(MANAGED_BEGIN);
+		expect(payload).not.toContain("STALE PROFILE");
+		expect(payload).toContain("NATIVE CONTEXT");
+		expect(h.errors).toEqual([]);
+		expect(h.network).not.toHaveBeenCalled();
+	}, 30000);
+
 	it.skipIf(!modern)(
-		"keeps sections through tree navigation and resuming a compacted branch",
+		"keeps sections and the profile through tree navigation and resume",
 		async () => {
 			const h = await harness({ foreign: "sections", persistent: true });
 			await h.session.prompt("FIRST");

@@ -5,6 +5,27 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project follows the `0.y.z` convention used by its author: `PATCH` for
 compatible fixes, `MINOR` for features or breaking changes.
 
+## [Unreleased]
+
+### Fixed
+
+- Deliver the profile through `before_agent_start` again on every Pi version,
+  returning the complete prompt instead of prepending to the request through
+  `context_with_system` (no longer registered). Another extension returning
+  `systemPrompt` makes Pi replace the whole system message after every hook, so
+  the request-local prepend never reached the provider; the complete prompt is
+  what Pi projects last, and it chains, so the managed block appears exactly
+  once when another extension builds on `event.systemPrompt`, before or after
+  this one. A later extension returning an independent full replacement can
+  still discard it, and the read-only check warns then. While a profile is
+  active the request carries a complete prompt: the 0.11.0 native section-delta
+  benefit is given up, adding tools during a run rebuilds the system header, and
+  prompt snippets and guidelines of a tool activated mid-run are absent until
+  the next run. With no profile, Pi keeps its own prompt and deltas.
+- The missing-profile warning now reports an observation: "the selected profile
+  was not found in this request. Another extension may have replaced the
+  complete system prompt." The unverified-format variant is unchanged.
+
 ## 0.11.0 - 2026-10-31
 
 ### Fixed

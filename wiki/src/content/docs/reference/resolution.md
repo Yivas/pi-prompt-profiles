@@ -54,16 +54,20 @@ it does not create a privileged message type at the API level.
 Composition is idempotent: the extension removes its own leading block and
 prepends exactly one, so the prompt never accumulates duplicates.
 
-In the Pi 1.4+ path, the block is frozen at the start of a run and
-prepended through `context_with_system` for each request. Native sections and
-tool updates stay intact, and the block is not persisted in the transcript.
-Off removes it on the next run. Legacy Pi, including 0.85.1, still uses a
-complete prompt return and does not gain native delta preservation.
+The block is resolved once at the start of a run and returned as the complete
+prompt. Pi applies it as the request's system message, and extensions chain that
+value, so an extension that appends keeps the block in either load order. A
+leading managed block is removed before one is prepended, so it appears exactly
+once, and it is not persisted in the transcript. Off removes it on the next run.
 
-Another extension returning a complete `systemPrompt` can discard the modern
-projection in either load order, including when it only appends text. The
-extension warns if the frozen block is missing from a recognized payload.
-Structured section contributions can coexist without that replacement.
+While a profile is active, Pi cannot apply its native system-section deltas to
+that prompt: adding a tool during a run rebuilds the system header, prompt
+snippets and guidelines of a tool activated mid-run are absent until the next
+run, and a structured section contributed by an extension that runs later is not
+part of that run's request. With no profile, Pi keeps its own prompt and deltas.
+An extension that replaces the prompt after this one can still discard the
+block; the extension then warns that the selected profile was not found in the
+request.
 
 ## Subagents
 
@@ -79,7 +83,7 @@ extensions never sees the block at all.
 Three different things are reported separately by `/sp status`:
 
 - the pending selection;
-- the profile block frozen in `before_agent_start`;
+- the profile prompt composed in `before_agent_start`;
 - the payload observed read-only in `before_provider_request`.
 
 The footer reports `not in payload` when a recognized request lacks the block,
