@@ -3,7 +3,7 @@ title: Compatibility
 description: Verified Pi contracts, the supported version and known limits.
 ---
 
-Version 0.11.0 has an offline transport matrix for Pi **0.85.1** and **1.4.0**;
+Version 0.11.1 has an offline transport matrix for Pi **0.85.1** and **1.4.0**;
 other versions are unverified. The full audit, with file references, is in
 [`docs/compatibility.md`](https://github.com/Yivas/pi-prompt-profiles/blob/main/docs/compatibility.md).
 

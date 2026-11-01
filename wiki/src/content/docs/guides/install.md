@@ -24,7 +24,7 @@ modified.
 From npm:
 
 ```bash
-pi install npm:pi-prompt-profiles@0.11.0
+pi install npm:pi-prompt-profiles@0.11.1
 ```
 
 From a local checkout:

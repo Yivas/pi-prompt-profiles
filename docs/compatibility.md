@@ -28,7 +28,7 @@ Source files read in full and used as the ground truth:
 - `dist/core/agent-session.js`, `dist/core/sdk.js`
 - `node_modules/@earendil-works/pi-ai/dist/types.d.ts`
 
-Minimum supported version remains **0.85.1**. Version 0.11.0 also has an offline
+Minimum supported version remains **0.85.1**. Version 0.11.1 also has an offline
 integration matrix for **1.4.0**. Other versions are not verified.
 
 | Pi | Injection | Cache boundary |
